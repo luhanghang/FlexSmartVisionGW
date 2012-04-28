@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TitleWin xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="400" height="260" creationComplete="init()" title="{Str.xml.driver.@string+Str.xml.split.@string+Str.xml.inf.@string}" xmlns:utils="utils.*">
+	<mx:Script>
+		<![CDATA[
+			import views.gateway.Gateway;
+			import utils.*;
+			
+			private var device:XML;	
+			private var devices:XML;		
+			
+			private function init():void {
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+			}	
+			
+			private function submit_data():void {
+				enabled = false;
+				devices = Gateway.DICTIONARY.Devices[0];
+				device = <Device/>;
+				device.@id = devices.Device.length() + 1;
+				device.name = device_name.text;
+				device.vendor = vendor.text;
+				device.type = type.text;
+				device.driver = driver.text;
+				device.GUID = guid.text;
+				driverRequest.url = Utils.get_url("/drivers/add");
+				var params:URLVariables = new URLVariables;
+				params.xml = device.toXMLString();
+				driverRequest.send(params);
+			}
+			
+			private function do_add():void {
+				devices.appendChild(device);
+				close();
+			}
+		]]>
+	</mx:Script>
+	<mx:HTTPService id="driverRequest" result="do_add()" 
+		useProxy="false" method="POST" showBusyCursor="true"/>
+		
+	<mx:Array id="validators">
+		<mx:Validator property="text" required="true" source="{device_name}" requiredFieldError="{Str.xml.lack.@string+Str.xml.split.@string+Str.xml.driver.@string+Str.xml.split.@string+Str.xml.name.@string}"/>
+		<mx:Validator property="text" required="true" source="{type}" requiredFieldError="{Str.xml.lack.@string+Str.xml.split.@string+Str.xml.device.@string+Str.xml.split.@string+Str.xml.type.@string}"/>
+		<mx:Validator property="text" required="true" source="{driver}" requiredFieldError="{Str.xml.lack.@string+Str.xml.split.@string+Str.xml.device.@string+Str.xml.split.@string+Str.xml.driver.@string}"/>
+		<mx:Validator property="text" required="true" source="{guid}" requiredFieldError="{Str.xml.lack.@string+Str.xml.split.@string}GUID"/>
+	</mx:Array>	
+	
+	<mx:VBox width="100%" height="100%" horizontalAlign="center" verticalGap="10">
+		<mx:Spacer height="10"/>
+		<mx:Canvas width="85%" height="100%" styleName="menu">
+			<mx:Form y="0" height="100%" defaultButton="{submit}" horizontalCenter="0" verticalCenter="0">
+				<mx:FormItem label="{Str.xml.device.@string+Str.xml.split.@string+Str.xml.name.@string}" required="true">
+					<mx:TextInput id="device_name"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.vendor.@string}">
+					<mx:TextInput id="vendor"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.device.@string+Str.xml.split.@string+Str.xml.type.@string}" required="true">
+					<mx:TextInput id="type"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.driver.@string}" required="true">
+					<mx:TextInput id="driver"/>
+				</mx:FormItem>
+				<mx:FormItem label="GUID" required="true">
+					<mx:TextInput id="guid"/>
+				</mx:FormItem>
+			</mx:Form>
+		</mx:Canvas>
+		<mx:HBox paddingBottom="20" height="50" verticalAlign="center">
+			<mx:Button label="{Str.xml.save.@string}" id="submit" enabled="false" click="submit_data()"/>
+			<mx:Button label="{Str.xml.close.@string}" click="close()"/>
+		</mx:HBox>
+	</mx:VBox>
+</TitleWin>

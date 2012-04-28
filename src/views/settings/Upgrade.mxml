@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" width="500" height="500" creationComplete="init();"
+	xmlns:u="utils.*" xmlns:v="views.*" title="{Str.xml.online_upgrade}" xmlns:settings="views.settings.*"
+	xmlns:pv3dEffects="ws.tink.flex.pv3dEffects.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.rpc.events.FaultEvent;
+			import mx.events.ResizeEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.events.CloseEvent;
+			import utils.*;
+			import mx.events.DataGridEvent;
+			import mx.utils.StringUtil;
+			
+			[Bindable]
+			private var version:String;
+			
+			[Bindable]
+			private var host:String;
+		
+			private function init():void {
+				verRPC.url = Utils.get_url("/upgrade/ver");
+				verRPC.send();			
+			}
+			
+			private function showVersion(event:ResultEvent):void {
+				var r:Array = event.result.toString().split("|");
+				var result:Array = r[0].split(" ");
+				version = result[1];
+				host = result[0];	
+			}
+			
+			private function checkUpgrade():void {
+				checkUpgradeRPC.url = Utils.get_url("/upgrade/check");
+				var params:URLVariables = new URLVariables;
+				params.host = server.text;
+				checkUpgradeRPC.send(params);	
+			}
+			
+			private function checkResult(event:ResultEvent):void {
+				var returnString:String = event.result.toString();
+				if(returnString == "0") {
+					utils.Alert.show(Str.xml.cant_connect_to_upgrade_server.@string);
+					return;	
+				}
+				var r:Array = returnString.split("|");
+				var result:Array = r[0].split(" ");
+				if(result[1] == version) {
+					description.text = '\n\n' + Str.xml.lasted_version.@string;
+					bUpgrade.visible = false;
+					bUpgrade.includeInLayout = false;
+				} else {
+					description.text = '\n\n' + Str.xml.found_new_version.@string + ':' + result[1] + "\n\n" + Str.xml.new_version.@string + Str.xml.split.@string + Str.xml.inf.@string+":" + r[1];
+					bUpgrade.visible = true;
+					bUpgrade.includeInLayout = true;
+				}	
+			}
+			
+			private function to_upgrade():void {
+				Alert.show(Str.xml.confirm_update.@string, Str.xml.update_confirm.@string, mx.controls.Alert.YES|mx.controls.Alert.NO, this, do_upgrade, null, mx.controls.Alert.NO);	
+			}
+			
+			private function do_upgrade(event:CloseEvent):void {
+				if(event.detail == mx.controls.Alert.YES) {
+					utils.Alert.show(Str.xml.upgrading.@string);	
+					upgradeRPC.url = Utils.get_url("/upgrade/do");
+					var params:URLVariables = new URLVariables;
+					params.host = server.text;
+					upgradeRPC.send(params);
+				}
+			}
+		]]>
+	</mx:Script>
+	<mx:HTTPService id="verRPC" useProxy="false" method="POST" resultFormat="text" result="showVersion(event)"/>
+	<mx:HTTPService id="upgradeRPC" useProxy="false" method="POST" resultFormat="text" result="utils.Alert.show(Str.xml.upgrade_complete.@string)" fault="utils.Alert.show(Str.xml.error_in_updating.@string)"/>
+	<mx:HTTPService id="checkUpgradeRPC" useProxy="false" method="POST" resultFormat="text" result="checkResult(event)" fault="Alert.show(event.message.toString())"/>
+	
+	<mx:VBox width="80%" height="100%" y="10" horizontalCenter="10" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+		<mx:Form>
+			<mx:FormItem label="{Str.xml.current_version.@string}">
+				<mx:Label text="{version}"/>
+			</mx:FormItem>
+			<mx:FormItem label="{Str.xml.update.@string+Str.xml.split.@string+Str.xml.server.@string+Str.xml.split.@string+Str.xml.address.@string}">
+				<mx:TextInput id="server" text="{host}"/>
+			</mx:FormItem>
+			<mx:FormItem label="">
+				<mx:Text id="description"/>
+			</mx:FormItem>
+		</mx:Form>
+		<mx:Spacer height="100%"/>
+		<mx:HBox width="100%" horizontalAlign="center">
+			<mx:Button label="{Str.xml.check_new_version.@string}" click="checkUpgrade()"/>
+			<mx:Button label="{Str.xml.update_to_lasted_version.@string}" id="bUpgrade" visible="false" includeInLayout="false" click="to_upgrade()"/>
+		</mx:HBox>
+		<mx:Spacer height="10"/>
+	</mx:VBox>
+</v:TitleWin>

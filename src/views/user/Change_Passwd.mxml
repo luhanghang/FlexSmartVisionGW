@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml"
+	width="396" height="210" title="{Str.xml.change_passwd.@string}"
+	creationComplete="init()" xmlns:v="views.*">
+	<mx:Script>
+	<![CDATA[
+		import mx.effects.Fade;
+		import mx.managers.PopUpManager;
+		import mx.core.ScrollPolicy;
+		import utils.*;
+		
+		private function init():void{
+			formValidator.addValidators(validators);
+			formValidator.failedCallBack=function():void{
+				submit.enabled=false;
+			};
+			formValidator.passedCallBack=function():void{
+				submit.enabled=true;
+			};
+		}
+		
+		private function pre_submit():void {
+			if(passwd.text != passwd1.text) {
+				errorTip.visible = true;
+				return;
+			}		
+			gwRPC.send();
+		}
+	]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="gwRPC" url="{Utils.get_url('/change_passwd/')}" result="close()" useProxy="false" method="POST" showBusyCursor="true">
+		<mx:request xmlns="">
+			<passwd>
+				{passwd.text}
+			</passwd>
+		</mx:request>
+	</mx:HTTPService>
+
+	<mx:Array id="validators">
+		<mx:Validator required="true" source="{passwd}" property="text" requiredFieldError="{Str.xml.lack.@string}{Str.xml.split.@string}{Str.xml.new_passwd.@string}"/>	
+	</mx:Array>
+	
+	<mx:Fade id="fadeIn" alphaFrom="0" alphaTo="1" duration="500"/>
+	
+	<mx:VBox width="100%" height="100%" verticalGap="20" horizontalAlign="center">
+		<mx:Spacer height="10"/>
+		<mx:Canvas width="90%" height="100%" styleName="menu">
+			<mx:Form defaultButton="{submit}" horizontalCenter="0" verticalCenter="0">
+				<mx:FormItem label="{Str.xml.new_passwd.@string}">
+					<mx:TextInput id="passwd" displayAsPassword="true"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.confirm_passwd.@string}">
+					<mx:TextInput id="passwd1" displayAsPassword="true"/>
+				</mx:FormItem>
+				<mx:FormItem>
+					<mx:Label text="{Str.xml.passwd_not_match.@string}" color="haloOrange" visible="false" id="errorTip" showEffect="{fadeIn}"/>
+				</mx:FormItem>
+			</mx:Form>
+		</mx:Canvas>	
+		<mx:HBox width="100%" paddingBottom="20" horizontalAlign="center">
+			<mx:Button label="{Str.xml.save.@string}" id="submit" enabled="false" click="pre_submit()"/>
+			<mx:Button label="{Str.xml.close.@string}" click="close()"/>
+		</mx:HBox>
+	</mx:VBox>
+</v:TitleWin>

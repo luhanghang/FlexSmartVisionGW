@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%"
+	xmlns:device="views.device.*"
+	xmlns:view="views.*" creationComplete="init()">
+	
+	<mx:Metadata>
+		[Event(name="Popup", type="events.PopupEvent")]
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import events.PopupEvent;
+			import mx.events.ItemClickEvent;
+			import mx.events.CloseEvent;
+			import mx.events.DragEvent;
+			import mx.utils.ObjectProxy;
+			import mx.rpc.events.ResultEvent;
+			import mx.collections.ArrayCollection;
+			import utils.Utils;
+			import mx.controls.Alert;
+			import views.device.DecoderInf;
+			import mx.managers.PopUpManager;
+			import mx.managers.DragManager;
+			import mx.core.UIComponent;
+			import mx.controls.listClasses.ListBase;
+			import mx.core.DragSource;
+			import mx.controls.buttonBarClasses.ButtonBarButton;
+			
+			[Bindable]
+			public var gFilter:GlowFilter = Utils.neonFilter();
+			
+			[Bindable]
+			public var encoders:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var decoders:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			public var vTreeData:XML;
+			
+			private function init():void {
+				bNewDevice.enabled = false;
+				bModify.enabled = false;
+				decoderRPC.send();
+			}
+			
+			public function init_venues():void {
+				vTreeData = null;
+				venueRPC.url = Utils.get_url('/meeting/venue/list');
+				venueRPC.send();
+			}
+
+			private function set_decoders(event:ResultEvent):void {
+				if(event.result.Decoders) {
+					if(event.result.Decoders.Decoder is ObjectProxy)
+						decoders.addItem(event.result.Decoders.Decoder);
+					else
+						decoders = event.result.Decoders.Decoder;
+				}
+				init_venues();
+			}
+			
+			private function encoder_seq(item:Object,col:int):String {
+				return String(encoders.getItemIndex(item) + 1);
+			}
+			
+			private function decoder_seq(item:Object,col:int):String {
+				return String(decoders.getItemIndex(item) + 1);
+			}
+			
+			public function show_decoder_inf(decoder:Object, event:MouseEvent):void {
+				var inf:DecoderInf = new DecoderInf;
+				inf.decoder = decoder;
+				inf.decoders = decoders;
+				inf.callBack = save_decoder;
+				dispatchEvent(new PopupEvent(PopupEvent.POPUP, event, inf));
+			}
+			
+			private function save_decoder(decoder:Object, isNew:Boolean):void {
+				if(isNew) {
+					decoders.addItem(decoder);
+					dgDecoder.selectedItem = decoder;
+				} else {
+					decoders.setItemAt(decoder, decoders.getItemIndex(dgDecoder.selectedItem));
+					update_vTreeData(decoder);	
+				}	
+			}
+			
+			private function update_vTreeData(decoder:Object):void {
+				for each(var v:XML in (vTreeData.children()[0] as XML).children()) {
+					for each(var d:XML in v.child('Device')) {
+						var ds:XMLList = d.child('Decoder');
+						if(ds.length() > 0) {
+							var de:XML = ds[0] as XML;
+							if(de.@id == decoder.id) {
+								de.@name = decoder.name;
+							}
+						}
+					}
+				}	
+			}
+			
+			private function remove_decoder_from_vTreeData(decoder_id:String):void {
+				for each(var v:XML in (vTreeData.children()[0] as XML).children()) {
+					for each(var d:XML in v.child('Device')) {
+						var ds:XMLList = d.child('Decoder');
+						if(ds.length() > 0) {
+							var de:XML = ds[0] as XML;
+							if(de.@id == decoder_id) {
+								vTree_remove_item(de);	
+							}
+						}
+					}
+				}	
+			}
+            
+            private function remove_decoders(event:CloseEvent):void {
+				if (event.detail == Alert.YES) {
+					var params:URLVariables = new URLVariables;
+					params['id'] = new Array();
+					for each(var item:Object in dgDecoder.selectedItems) {
+						decoders.removeItemAt(decoders.getItemIndex(item));	
+						remove_decoder_from_vTreeData(item.id);					
+						params['id'].push(item.id);	
+					}
+					decoderRemoveRPC.url = utils.Utils.get_url("/meeting/decoder/destroy");
+					decoderRemoveRPC.send(params);
+				}	
+			}
+			
+			private function set_venues(event:ResultEvent):void {
+				vTreeData = XML(event.result);
+				vTree.openItems = vTreeData.Venue;
+				vTree.selectedIndex = 0;
+			}
+			
+			private function labelFunc(item:XML):String {
+				if(item.localName().toString() == 'Venue') return item.@name + " (" + item.children().length() + ")";
+				if(item.localName().toString() == 'Encoder') return '编码器:' + item.@name;
+				if(item.localName().toString() == 'Decoder') return '解码器:' + item.@name;
+				return item.@name;
+			}
+			
+			private function isVenue():Boolean {
+				return (vTree.selectedItem as XML).localName().toString() == 'Venue';
+			}
+			
+			private function toggleAddButton():void {
+				bModify.enabled = isVenue() && vTree.selectedIndex > 0;
+				bNewDevice.enabled = bModify.enabled;
+				toggleExpand();
+			}
+			
+			private function newDevice(event:MouseEvent):void {	
+				var params:URLVariables = new URLVariables;
+				params['id'] = (vTree.selectedItem as XML).@id;
+				addDeviceRPC.send(params);	
+			}
+			
+			private function add_device(event:ResultEvent):void {
+				var venue:XML = vTree.selectedItem as XML;
+				var device:XML = <Device name="设备" isBranch="true"/>
+				device.@id = event.result.toString();			
+				venue.appendChild(device);
+			}
+			
+			private function show_venue_inf(event:MouseEvent, isNew:Boolean = false):void {
+				var venue:XML;
+				if(!isNew) {
+					venue = vTree.selectedItem as XML;
+				}
+				var inf:VenueInf = new VenueInf;
+				inf.venue = venue;
+				inf.venues = (vTreeData.children()[0] as XML).children();
+				inf.callBack = save_venue;
+				dispatchEvent(new PopupEvent(PopupEvent.POPUP, event, inf));
+			}
+			
+			private function save_venue(venue:XML, isNew:Boolean):void {
+				if(isNew) {
+					(vTreeData.children()[0] as XML).appendChild(venue);
+				} else {
+					(vTree.selectedItem as XML).@name = venue.@name;
+				}
+			}
+			
+			private function vDragEnter(event:DragEvent):void {
+				event.preventDefault();
+				event.currentTarget.hideDropFeedback(event);
+				if((event.dragInitiator == dgEncoder || event.dragInitiator == dgDecoder) && event.dragSource.hasFormat("items") ) {
+					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+				}
+			}
+			
+			private function vDragOver(event:DragEvent):void {
+				event.preventDefault();
+                event.currentTarget.showDropFeedback(event);
+                vTree.selectedIndex = vTree.calculateDropIndex(event);
+                var node:XML = vTree.selectedItem as XML;
+				if(node.@isBranch == 'true') vTree.expandItem(node,true);
+				if(node.localName().toString() == 'Device') {
+					if(event.dragInitiator == dgEncoder && node.child('Encoder').length() == 0){ 
+						DragManager.showFeedback(DragManager.COPY);
+						return;
+					}
+					if(event.dragInitiator == dgDecoder && node.child('Decoder').length() == 0) {
+						DragManager.showFeedback(DragManager.COPY);
+						return;
+					}
+				}	
+				event.preventDefault();
+                event.currentTarget.hideDropFeedback(event);
+				DragManager.showFeedback(DragManager.NONE);
+			}
+			
+			private function vDragDrop(event:DragEvent):void {
+				event.preventDefault();
+                event.currentTarget.hideDropFeedback(event);
+                vTree.selectedIndex = vTree.calculateDropIndex(event);
+                var device:Object = (event.dragInitiator as DataGrid).selectedItem;
+                var node:XML = vTree.selectedItem as XML;
+                var v:XML = node.parent() as XML;
+                var item:XML;
+                var params:URLVariables = new URLVariables;
+				params['id'] = v.@id;
+				params['device_id'] = node.@id;
+				params['name'] = device.name;
+                params['address'] = device.address;
+                if(event.dragInitiator == dgEncoder) {
+                	item = <Encoder/>		
+                	vRPC.url = Utils.get_url("/meeting/venue/add_encoder");
+                	params['encoder_id'] = device.id;	
+                } else {
+                	item = <Decoder/>
+                	vRPC.url = Utils.get_url("/meeting/venue/add_decoder");
+                	params['decoder_id'] = device.id;
+                	params['device_type'] = device.device_type;
+                	params['port'] = device.port;
+                }
+                item.@name = device.name;
+                item.@id = device.id;
+                node.appendChild(item);
+                vRPC.send(params);
+			}
+			
+			private function toggleExpand():void {
+				var node:XML = vTree.selectedItem as XML;
+				if(node.@isBranch == 'true') {
+					vTree.expandItem(node, !vTree.isItemOpen(node));
+				}
+			}
+			
+			private function DragOver(event:DragEvent):void {
+            	utils.Utils.trashGrow(vTrash, true);
+            	DragManager.showFeedback(DragManager.MOVE);	
+            	glow.play(); 	
+            }   
+            
+            private function DragExit(event:DragEvent):void {
+            	utils.Utils.trashGrow(vTrash, false);	
+            	glowOut.play(); 	
+            } 
+            
+            private function DragDrop(event:DragEvent):void {
+            	DragExit(event);
+            	var node:XML = vTree.selectedItem as XML;
+            	if(node.localName().toString() == "Venue") {
+            		utils.Alert.show("确定删除选定会场吗?      ", "删除确认", Alert.YES|Alert.NO, this, remove_venue, null, Alert.NO);
+            		return;	
+            	}
+            	if(node.localName().toString() == "Device") {
+            		utils.Alert.show("确定删除选定设备吗?      ", "删除确认", Alert.YES|Alert.NO, this, remove_device, null, Alert.NO);
+            		return;	
+            	}
+            	if(node.localName().toString() == "Encoder") {
+            		utils.Alert.show("确定删除选定编码器吗?      ", "删除确认", Alert.YES|Alert.NO, this, remove_encoder, null, Alert.NO);
+            		return;	
+            	}
+            	if(node.localName().toString() == "Decoder") {
+            		utils.Alert.show("确定删除选定解码器吗?      ", "删除确认", Alert.YES|Alert.NO, this, remove_decoder, null, Alert.NO);
+            		return;	
+            	}
+            }
+            
+            private function vTree_remove_item(item:XML):void {
+            	var children:XMLList = XMLList(item.parent()).children();
+                for(var i:int = 0 ; i < children.length(); i++) {
+                   	if( children[i] == item ) {
+                       	delete children[i];
+                   	}
+                }
+            }
+            
+            private function remove_venue(event:CloseEvent):void {
+            	if (event.detail == Alert.YES) {
+            		var node:XML = vTree.selectedItem as XML;
+            		var params:URLVariables = new URLVariables;
+					params['id'] = node.@id;
+					vRPC.url = Utils.get_url("/meeting/venue/destroy");
+					vTree_remove_item(node);	
+					vRPC.send(params);	
+            	}	
+            }
+            
+            private function remove_device(event:CloseEvent):void {
+            	if (event.detail == Alert.YES) {
+            		var node:XML = vTree.selectedItem as XML;
+            		var v:XML = node.parent() as XML;
+            		var params:URLVariables = new URLVariables;
+					params['id'] = v.@id;
+					params['device_id'] = node.@id;
+					vRPC.url = Utils.get_url("/meeting/venue/remove_device");
+					vTree_remove_item(node);		
+					if(v.children().length() == 0) {
+						var device:XML = <Device id="1" name="设备" isBranch="true"/>			
+						v.appendChild(device);
+					}
+					vRPC.send(params);
+            	}	
+            }
+            
+            private function remove_encoder(event:CloseEvent):void {
+            	if (event.detail == Alert.YES) {
+            		var node:XML = vTree.selectedItem as XML;
+            		var d:XML = node.parent() as XML;
+            		var v:XML = d.parent() as XML;
+            		var params:URLVariables = new URLVariables;
+					params['id'] = v.@id;
+					params['device_id'] = d.@id;
+					vRPC.url = Utils.get_url("/meeting/venue/remove_encoder");
+					vTree_remove_item(node);
+					vRPC.send(params);	
+            	}	
+            }
+            
+            private function remove_decoder(event:CloseEvent):void {
+            	if (event.detail == Alert.YES) {
+            		var node:XML = vTree.selectedItem as XML;
+            		var d:XML = node.parent() as XML;
+            		var v:XML = d.parent() as XML;
+            		var params:URLVariables = new URLVariables;
+					params['id'] = v.@id;
+					params['device_id'] = d.@id;
+					vRPC.url = Utils.get_url("/meeting/venue/remove_decoder");
+					vTree_remove_item(node);
+					vRPC.send(params);		
+            	}	
+            }
+            
+            private function DragEnter(event:DragEvent):void {
+				if(event.dragInitiator == vTree) {
+					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+					glow.play();
+				}
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="decoderRPC" showBusyCursor="true" url="{utils.Utils.get_url('/meeting/decoder/list')}" result="set_decoders(event)"/>
+	<mx:HTTPService id="venueRPC" showBusyCursor="true" result="set_venues(event)" resultFormat="xml"/>
+	<mx:HTTPService id="decoderRemoveRPC" showBusyCursor="true" method="POST" useProxy="false"/>
+	<mx:HTTPService id="addDeviceRPC" showBusyCursor="true" method="POST" useProxy="false" 
+		resultFormat="text" result="add_device(event)" url="{utils.Utils.get_url('/meeting/venue/add_device')}"/> 
+	<mx:HTTPService id="vRPC" showBusyCursor="true" method="POST" useProxy="false"/>
+	
+	<mx:Glow id="glow" duration="1000" 
+        alphaFrom="1.0" alphaTo="0" 
+        blurXFrom="0.0" blurXTo="50.0" 
+        blurYFrom="0.0" blurYTo="50.0" 
+        color="0x00FF80" target="{vTrash}" repeatCount="10000"/>
+    <mx:Glow id="glowOut" duration="1000" 
+        alphaFrom="0.5" alphaTo="0" 
+        blurXFrom="0.0" blurXTo="50.0" 
+        blurYFrom="0.0" blurYTo="50.0" 
+        color="0x00FF80" effectStart="glow.stop()" target="{vTrash}"/>	
+	
+	<mx:HDividedBox x="0" y="0" width="100%" height="100%">
+		<mx:Canvas width="250" height="100%" maxWidth="250" horizontalScrollPolicy="off" 
+			styleName="menu" borderSides="left right bottom" verticalScrollPolicy="off">
+			<mx:VBox x="0" y="25" width="100%" height="100%" filters="{[gFilter]}">
+				<mx:Tree id="vTree" click="toggleAddButton()" 
+					width="100%" height="100%" 
+					dataProvider="{vTreeData}" showRoot="false" labelFunction="labelFunc"
+					dragOver="vDragOver(event)" dragEnabled="true" dragEnter="vDragEnter(event)"
+					dragDrop="vDragDrop(event)"
+					dragMoveEnabled="false" dropEnabled="false"/>
+				<mx:HBox width="100%" horizontalGap="3" paddingBottom="5" paddingLeft="5" paddingRight="5" paddingTop="5" verticalAlign="bottom">
+					<mx:Button id="bNew" label="添加会场" click="show_venue_inf(event,true)"/>
+					<mx:Button id="bModify" label="修改" click="show_venue_inf(event)"/>
+					<mx:Button id="bNewDevice" label="添加设备" click="newDevice(event)"/>
+					<mx:Spacer width="100%"/>
+					<mx:Image width="32" height="32" id="vTrash" 
+						source="{utils.Utils.trash_icon}"
+						dragEnter="DragEnter(event)"
+						dragOver="DragOver(event)"
+						dragExit="DragExit(event)"
+						dragDrop="DragDrop(event)"/>
+				</mx:HBox>
+			</mx:VBox>
+			<view:StyleTitle text="会场列表"/>
+		</mx:Canvas>
+		
+		<mx:Canvas width="50%" height="100%" styleName="menu" borderSides="left right bottom">
+			<mx:DataGrid id="dgEncoder" x="0" y="25" width="100%" height="100%" rowHeight="22" headerHeight="22" 
+				dataProvider="{encoders}" dragEnabled="true" filters="{[gFilter]}">
+				<mx:columns>
+					<mx:DataGridColumn headerText="序号" sortable="false" labelFunction="encoder_seq" width="30" textAlign="center" paddingLeft="0" paddingRight="0"/>
+					<mx:DataGridColumn headerText="名称" dataField="name"/>
+					<mx:DataGridColumn headerText="地址" dataField="global_id"/>
+				</mx:columns>
+			</mx:DataGrid>
+			<view:StyleTitle text="编码器列表"/>
+		</mx:Canvas>
+		
+		<mx:Canvas width="50%" height="100%" styleName="menu" borderSides="left right bottom">
+			<mx:VBox x="0" y="25" width="100%" height="100%" verticalGap="1" filters="{[gFilter]}">
+				<mx:DataGrid id="dgDecoder" width="100%" height="100%" 
+					dataProvider="{decoders}" rowHeight="22" headerHeight="22"
+					dragEnabled="true" dragMoveEnabled="false" allowMultipleSelection="true">
+					<mx:columns>
+						<mx:DataGridColumn headerText="序号" sortable="false" labelFunction="decoder_seq" width="30" textAlign="center" paddingLeft="0" paddingRight="0"/>
+						<mx:DataGridColumn headerText="名称" dataField="name"/>
+						<mx:DataGridColumn headerText="地址" dataField="address"/>
+						<mx:DataGridColumn headerText="设备类型" dataField="device_type"/>
+						<mx:DataGridColumn headerText="服务端口" dataField="port"/>
+						<mx:DataGridColumn headerText="" sortable="false" width="60">
+							<mx:itemRenderer>
+								<mx:Component>
+									<mx:HBox horizontalAlign="center">
+										<mx:Label text="修改" click="outerDocument.show_decoder_inf(data, event)" useHandCursor="true" buttonMode="true" mouseChildren="false"/>
+									</mx:HBox>
+								</mx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+					</mx:columns>
+				</mx:DataGrid>
+				<mx:HBox width="100%" verticalAlign="bottom" paddingBottom="5" paddingLeft="5" paddingRight="5" paddingTop="5">
+					<mx:Button label="添加解码器" click="show_decoder_inf(new Object(), event)"/>
+					<mx:Spacer width="100%"/>
+					<view:Trash src="{dgDecoder}" toolTip="将解码器从解码器列表中拖放到此处删除解码器"
+						 callBack="remove_decoders" confirm="确定删除选中的解码器吗?     "/>	
+				</mx:HBox>
+			</mx:VBox>
+			<view:StyleTitle text="解码器列表"/>	
+		</mx:Canvas>
+	</mx:HDividedBox>
+</mx:Canvas>

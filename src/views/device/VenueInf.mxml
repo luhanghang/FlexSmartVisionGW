@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TitleWin xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml"
+	 width="262" height="138" title="会场信息" creationComplete="init()" xmlns:utils="utils.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.rpc.events.ResultEvent;
+			import utils.FormValidator;
+		
+			[Bindable]
+			public var venue:XML;
+			
+			private var isNew:Boolean;
+			
+			[Bindable]
+			public var venues:XMLList;
+			
+			private function init():void {
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+				isNew = !venue;
+				if(isNew) {
+					venue = <Venue name="" isBranch="true">
+						<Device id="1" name="设备" isBranch="true"/>
+						</Venue>
+				}
+			}
+			
+			private function submit_data():void {
+				submit.enabled = false;
+				var params:URLVariables = new URLVariables;
+				if(!isNew) params['id'] = venue.@id;
+				params['name'] = venue_name.text;
+				venueRequest.url = utils.Utils.get_url("/meeting/venue/save");
+				venueRequest.send(params);
+			}
+			
+			private function refresh(event:ResultEvent):void {
+				if(isNew) {
+					venue.@id = event.result.toString();
+				}
+				venue.@name = venue_name.text;
+				callBack.call(this.parent, venue, isNew);
+				close();	
+			}
+			
+			private function change_name():void {
+				if(isNew)
+					venue.@name = venue_name.text;
+			}
+		]]>
+	</mx:Script>
+	<mx:HTTPService id="venueRequest" 
+		useProxy="false" method="POST" showBusyCursor="true" result="refresh(event)" resultFormat="text"/>
+	
+	<mx:Array id="validators">
+		<utils:UniqueValidatorXML property="text" source="{venue_name}" required="true"
+			 requiredFieldError="请填写会场名称" errorMessage="会场名称已存在" list="{venues}" selfObj="{venue}" field="@name"/>	
+	</mx:Array>
+	<mx:Form x="0" y="0" width="100%" height="100%" defaultButton="{submit}">
+		<mx:FormItem label="会场名称" required="true">
+			<mx:TextInput id="venue_name" text="{venue.@name}" change="change_name()"/>
+		</mx:FormItem>
+	</mx:Form>
+	<mx:ControlBar>
+		<mx:Button label="保存" id="submit" enabled="false" click="submit_data()"/>
+		<mx:Button label="关闭" click="close()"/>
+	</mx:ControlBar>
+	
+</TitleWin>

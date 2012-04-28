@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml"
+	width="100%" height="100%" styleName="menu" y="20" 
+	horizontalCenter="0" borderSides="left right bottom"
+	creationComplete="init();"
+	xmlns:u="utils.*" xmlns:v="views.*">
+	
+	<mx:Metadata>
+		[Event(name="ValidateError")]
+		[Event(name="ValidateOK")]
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.events.CloseEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.collections.ArrayCollection;
+			import mx.managers.PopUpManager;
+			import mx.effects.Glow;
+			import mx.controls.Alert;
+			import utils.FormValidator;
+			import utils.Config;
+			import utils.*;
+			
+			[Bindable]
+			private var netinf0:Object;
+			[Bindable]
+			private var netinf1:Object;
+			
+			[Bindable]
+			public var ip:XML;
+			
+			private var formValidator:FormValidator=new FormValidator();
+			public var callBack:Function;
+			
+			private function init():void {
+				netRPC.url = Utils.get_url("/net/read");
+				netRPC.send();
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					//submit.enabled=false;
+					dispatchEvent(new Event("ValidateError"));
+				};
+				formValidator.passedCallBack=function():void{
+					//submit.enabled=true;
+					dispatchEvent(new Event("ValidateOK"));
+				};
+			}
+			
+			private function set_data(event:ResultEvent):void {
+				var netinf:ArrayCollection = event.result.NetInterfaces.NetInterface;
+				netinf0 = netinf.getItemAt(0);
+				netinf1 = netinf.getItemAt(1);
+				ip.@value = netinf0.address;
+			}	
+			
+			public function reload():void {
+				address0.text = netinf0.address;
+				mask0.text = netinf0.mask;
+				gw0.text = netinf0.gateway;
+				dns0.text = netinf0.dns0;
+				dns1.text = netinf0.dns1;
+				address1.text = netinf1.address;
+				mask1.text = netinf1.mask;
+			}		
+			
+			private function saved(event:ResultEvent):void {
+				ip.@value = address0.text;
+				glow.play();		
+			}
+			
+			public function do_submit():void {
+				netsaveRPC.url = utils.Config.HOST + "/netconf/save";
+				netsaveRPC.send();	
+			}
+			
+			private function showResult():void {
+				utils.Alert.show(Str.xml.new_setting_ok.@string);
+			}
+		]]>
+	</mx:Script>
+
+	<mx:HTTPService id="netRPC" result="set_data(event)"/>
+	<mx:HTTPService id="netsaveRPC" 
+		method="POST" showBusyCursor="true" result="saved(event)" useProxy="false">
+		<mx:request xmlns="">
+			<address0>
+				{address0.text}
+			</address0>
+			<mask0>
+				{mask0.text}
+			</mask0>
+			<gw0>
+				{gw0.text}
+			</gw0>
+			<dns0>
+				{dns0.text}
+			</dns0>
+			<dns1>
+				{dns1.text}
+			</dns1>
+			<address1>
+				{address1.text}
+			</address1>
+			<mask1>
+				{mask1.text}
+			</mask1>
+		</mx:request>
+	</mx:HTTPService>	
+	<mx:Array id="validators">
+		<u:IPValidator required="true" property="text" source="{address0}" requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.valid.@string + Str.xml.split.@string + 'IP' +  Str.xml.address.@string}"/>
+		<u:IPValidator required="true" property="text" source="{mask0}" requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.valid.@string + Str.xml.split.@string + 'IP' +  Str.xml.address.@string}"/>
+		<u:IPValidator required="true" property="text" source="{address1}" requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.valid.@string + Str.xml.split.@string + 'IP' +  Str.xml.address.@string}"/>
+		<u:IPValidator required="true" property="text" source="{mask1}" requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.valid.@string + Str.xml.split.@string + 'IP' +  Str.xml.address.@string}"/>
+		<u:IPValidator required="true" property="text" source="{gw0}" requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.valid.@string + Str.xml.split.@string + 'IP' +  Str.xml.address.@string}"/>
+		<u:IPValidator required="true" property="text" source="{dns0}" requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.valid.@string + Str.xml.split.@string + 'IP' +  Str.xml.address.@string}"/>
+		<u:IPValidator required="true" property="text" source="{dns1}" requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.valid.@string + Str.xml.split.@string + 'IP' +  Str.xml.address.@string}"/>
+	</mx:Array>
+	
+	<mx:Glow id="glow" target="{this}" repeatCount="3" effectEnd="showResult()"/>
+
+	<mx:VBox x="0" y="30" height="100%" width="90%" verticalGap="10" horizontalCenter="0">
+		<mx:Canvas styleName="menu" width="100%" borderSides="left right bottom">
+			<mx:Form x="0" top="20" width="100%" bottom="20" left="15">
+				<mx:FormItem label="{'IP' + Str.xml.split.@string + Str.xml.address.@string}">
+					<mx:TextInput id="address0" text="{netinf0.address}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.mask.@string}">
+					<mx:TextInput id="mask0" text="{netinf0.mask}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.gateway.@string}">
+					<mx:TextInput id="gw0" text="{netinf0.gateway}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.dns.@string}">
+					<mx:TextInput id="dns0" text="{netinf0.dns0}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.dns.@string}">
+					<mx:TextInput id="dns1" text="{netinf0.dns1}"/>
+				</mx:FormItem>
+			</mx:Form>
+			<v:StyleTitle text="{Str.xml.eth.@string}0"/>
+		</mx:Canvas>
+		<mx:Canvas styleName="menu" width="100%" borderSides="left right bottom">
+			<mx:Form x="0" top="20" width="100%" bottom="20" left="15">
+				<mx:FormItem label="{'IP' + Str.xml.split.@string + Str.xml.address.@string}">
+					<mx:TextInput id="address1" text="{netinf1.address}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.mask.@string}">
+					<mx:TextInput id="mask1" text="{netinf1.mask}"/>
+				</mx:FormItem>
+			</mx:Form>
+			<v:StyleTitle text="{Str.xml.eth.@string}1"/>
+		</mx:Canvas>
+	</mx:VBox>
+	<v:StyleTitle text="{Str.xml.network.@string + Str.xml.split.@string + Str.xml.setting.@string}" wizColor="true"/>
+</mx:Canvas>

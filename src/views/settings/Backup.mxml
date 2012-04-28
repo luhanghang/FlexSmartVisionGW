@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml"
+	width="100%" height="100%" styleName="menu" y="20" 
+	horizontalCenter="0" borderSides="left right bottom"
+	creationComplete="init();"
+	xmlns:u="utils.*" xmlns:v="views.*">
+	
+	<mx:Metadata>
+		[Event(name="ValidateError")]
+		[Event(name="ValidateOK")]
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.events.CloseEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.collections.ArrayCollection;
+			import mx.managers.PopUpManager;
+			import mx.effects.Glow;
+			import mx.controls.Alert;
+			import utils.*;
+						
+			[Bindable]
+			private var ipremote:String;
+			
+			private var formValidator:FormValidator=new FormValidator();
+			public var callBack:Function;
+			
+			private function init():void {
+				backupRPC.url = Utils.get_url("/backup/read");
+				backupRPC.send();
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					//submit.enabled=false;
+					dispatchEvent(new Event("ValidateError"));
+				};
+				formValidator.passedCallBack=function():void{
+					//submit.enabled=true;
+					dispatchEvent(new Event("ValidateOK"));
+				};
+			}
+			
+			private function set_data(event:ResultEvent):void {
+				ipremote = event.result.toString();
+			}	
+			
+			private function saved(event:ResultEvent):void {
+				glow.play();		
+			}
+			
+			public function save():void {
+				backupsaveRPC.url = utils.Config.HOST + "/backup/save";
+				backupsaveRPC.send();	
+			}
+			
+			private function showResult():void {
+				utils.Alert.show("新配置设置成功        ");
+			}
+		]]>
+	</mx:Script>
+
+	<mx:HTTPService id="backupRPC" result="set_data(event)" resultFormat="text"/>
+	<mx:HTTPService id="backupsaveRPC" 
+		method="POST" showBusyCursor="true" result="saved(event)" useProxy="false">
+		<mx:request xmlns="">
+			<ip_remote>
+				{ip_remote.text}
+			</ip_remote>
+		</mx:request>
+	</mx:HTTPService>	
+	<mx:Array id="validators">
+		<u:IPValidator required="true" property="text" source="{ip_remote}" errorMessage="{Str.xml.invalid_ip.@string}"
+			requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.valid.@string + Str.xml.split.@string + 'IP' + Str.xml.split.@string + Str.xml.address.@string}"/>
+	</mx:Array>
+	
+	<mx:Glow id="glow" target="{this}" repeatCount="3" effectEnd="showResult()"/>
+
+	<mx:Form x="0" top="20" width="100%" bottom="20" left="15">
+		<mx:FormItem label="IP{Str.xml.split.@string}{Str.xml.address.@string}">
+			<mx:TextInput id="ip_remote" text="{ipremote}"/>
+		</mx:FormItem>
+		<mx:Spacer height="20"/>
+		<mx:Label text="{Str.xml.eth1_ip_please.@string}"/>
+	</mx:Form>
+	<v:StyleTitle text="{Str.xml.backup.@string}{Str.xml.split.@string}{Str.xml.server.@string}" wizColor="true"/>
+</mx:Canvas>

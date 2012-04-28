@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml"
+	 width="100%" height="100%" 
+	 xmlns:user="views.user.*" 
+	 xmlns:views="views.*"
+	 creationComplete="init()"
+	 disabledOverlayAlpha="0">
+	 <mx:Metadata>
+		[Event(name="Freeze")]
+		[Event(name="UnFreeze")]
+		[Event(name="Popup", type="events.PopupEvent")]
+	</mx:Metadata>
+	<mx:Script>
+		<![CDATA[
+			import mx.events.CloseEvent;
+			import events.PopupEvent;
+			import mx.core.UITextField;
+			import mx.events.DragEvent;
+			import events.UserEvent;
+			import mx.controls.Alert;
+			import mx.events.ItemClickEvent;
+			import mx.rpc.events.ResultEvent;
+			import utils.Utils;
+			import mx.managers.PopUpManager;
+			import mx.managers.DragManager;
+			import mx.core.UIComponent;
+			import mx.controls.listClasses.ListBase;
+			import mx.core.DragSource;
+			import mx.controls.DataGrid;
+			import mx.controls.tabBarClasses.Tab;
+			
+			[Bindable]
+			private var ugs:XML;
+			private var dropIdx:int;
+			
+			private var selectedIndex:Number = 0;
+			
+			[Bindable]
+			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			private function init():void {
+				ugRPC.url = Utils.get_url("/users/groups");
+				ugRPC.send();	
+			}
+			
+			private function init_ug_tab(event:ResultEvent):void {
+				ugs = XML(event.result);
+				selectedIndex = 0;
+				selectGroup();	
+			}
+			
+			private function selectGroup():void {
+				menuItems.getChildAt(selectedIndex).dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+			}
+
+			private function menuClick(event:MouseEvent):void {
+				var item:UserGroupItem = event.currentTarget as UserGroupItem;
+				for(var i:Number = 0; i < menuItems.getChildren().length; i++) {
+					var _item:Object = menuItems.getChildAt(i);
+					if(_item == item) {
+						selectedIndex = i;	
+					}
+					_item.selected(item == _item);
+				}
+				
+				set_ug(item.group);
+			}
+			
+			private function set_ug(group:XML):void {
+				ug_panel.ug = group;
+			}
+			
+			private function new_group(event:MouseEvent):void {
+				var gInfScreen:GroupInfo = new GroupInfo;
+				gInfScreen.groups = ugs.Group;
+				gInfScreen.callBack = add_group;
+				this.dispatchEvent(new PopupEvent("Popup", event, gInfScreen));	
+			}
+			
+			private function add_group(group:XML, isNew:Boolean):void {
+				if(isNew) {
+					ugs.appendChild(group);
+				}
+				menuItems.getChildAt(ugs.Group.length() - 1).dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+			}
+			
+			private function accountAdd(event:UserEvent):void {
+//				var user:Object = event.user;
+//				var account:Object = new Object();
+//				account.id = user.id;
+//				account.account = user.account;
+//				accounts.addItem(account);
+			}
+			
+			private function accountUpdate(event:UserEvent):void {
+//				var user:Object = event.user;
+//				var account:Object = new Object();
+//				account.id = user.id;
+//				account.account = user.account;
+//				for each(var _account:Object in accounts) {
+//					if(_account.id == account.id) {
+//						accounts.setItemAt(account, accounts.getItemIndex(_account));
+//					}
+//				}
+			}
+			
+			private function accountRemove(event:UserEvent):void {
+//				var user:Object = event.user;
+//				for each(var account:Object in accounts) {
+//					if(account.id == user.id) {
+//						accounts.removeItemAt(accounts.getItemIndex(account));
+//					}
+//				}
+			}
+			
+			private function onDragEnter(event:DragEvent):void {
+//				var group:Object = (event.currentTarget as UserGroupItem).group;
+//				if(group.id != ug_panel.ug_id && event.dragInitiator is DataGrid && (event.dragInitiator as DataGrid).id == "users") {
+//					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+//				}	
+			}
+			
+			private function onDragOver(event:DragEvent):void {
+				DragManager.showFeedback(DragManager.MOVE);		
+			}
+			
+			private var targetGroup:Object;
+			private function onDragDrop(event:DragEvent):void {
+				targetGroup = (event.currentTarget as UserGroupItem).group;
+				var params:URLVariables = new URLVariables;
+				params['user_id[]'] = new Array();
+				for each(var _item:Object in event.dragSource.dataForFormat("items")) {
+					params['user_id[]'].push(_item.id);	
+				}
+				utils.Utils.doFreeze(this, true);
+				changeGroupRPC.url = utils.Utils.get_url("/user_groups/link_users/" + targetGroup.id);
+				changeGroupRPC.send(params);	
+			}
+			
+			private function groupChanged(event:ResultEvent):void {
+//				set_ug(targetGroup);
+//				for each(var item:UserGroupItem in menuItems.getChildren()) {
+//					item.selected(item.group.id == targetGroup.id);
+//				}
+//				utils.Utils.doFreeze(this, false);
+			}
+			
+			private function remove_group(event:CloseEvent):void {
+				if (event.detail == Alert.YES) {
+					var group:Object = uTrash.src.group;
+					if((uTrash.src as UserGroupItem).is_selected) selectedIndex = 0;
+					ugRemoveRPC.url = utils.Utils.get_url("/user_groups/remove/" + group.id);
+					ugRemoveRPC.send();
+					//ug_array.removeItemAt(ug_array.getItemIndex(group));
+					selectGroup();		
+				}
+			}
+			
+			private function init_accounts(event:ResultEvent):void {
+//				accounts = new ArrayCollection;
+//				if(event.result.Accounts) {
+//					if(event.result.Accounts.Account is ObjectProxy)
+//						accounts.addItem(event.result.Accounts.Account);
+//					else
+//						accounts = event.result.Accounts.Account;
+//				}	
+			}
+		]]>
+	</mx:Script> 
+	
+	<mx:HTTPService id="ugRPC" result="init_ug_tab(event)" resultFormat="xml"/>
+	<mx:HTTPService id="userRPC" result="init_accounts(event)"/>
+	<mx:HTTPService id="ugRemoveRPC"/>
+	<mx:HTTPService id="changeGroupRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" result="groupChanged(event)"/>
+	
+	<mx:Canvas x="0" y="0" styleName="menu" width="215" borderSides="left right bottom" height="100%">
+		<mx:VBox height="100%" y="25">
+			<mx:Canvas id="items" height="100%" width="100%" 
+				horizontalScrollPolicy="off" verticalScrollBarStyleName="scrollBar">
+				<mx:VBox id="menuItems" height="100%" verticalGap="3" paddingLeft="5" paddingRight="5">
+					<mx:Repeater id="rpt" dataProvider="{ugs.Group}">
+						<user:UserGroupItem Popup="dispatchEvent(event)" 
+							group="{rpt.currentItem}" groups="{ugs.Group}" 
+							click="menuClick(event)" width="200" 
+							dragEnter="onDragEnter(event)" 
+							dragOver="onDragOver(event)" 
+							dragDrop="onDragDrop(event)"/>
+					</mx:Repeater>
+				</mx:VBox>
+			</mx:Canvas>
+			<mx:HBox width="100%" verticalAlign="bottom" 
+				paddingBottom="5" paddingTop="5" paddingLeft="5" paddingRight="5" horizontalAlign="right">
+				<views:Button text="添加用户组" click="new_group(event)"/>
+				<mx:Spacer width="100%"/>
+				<views:Trash id="uTrash" toolTip="将用户组拖放到此处删除" confirm="确定删除该用户组吗?    " srcClass="{UserGroupItem}" callBack="remove_group"/>	
+			</mx:HBox>
+		</mx:VBox>
+		<views:StyleTitle text="用户组列表"/>
+	</mx:Canvas>
+	<mx:Canvas x="220" y="0" width="100%" height="100%">
+		<user:UserGroup id="ug_panel" width="100%" height="100%" 
+			 Freeze="utils.Utils.doFreeze(this,true)" groups="{ugs.Group}" 
+			 UnFreeze="utils.Utils.doFreeze(this,false)" Popup="dispatchEvent(event)"
+			 UserAdded="accountAdd(event)" UserUpdated="accountUpdate(event)" UserRemoved="accountRemove(event)">
+		</user:UserGroup>
+	</mx:Canvas>
+</mx:Canvas>

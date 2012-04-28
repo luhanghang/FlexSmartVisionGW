@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" 
+	xmlns:u="utils.*"  xmlns:v="views.*" show="addValidators()"
+	creationComplete="init()" width="100%" height="100%">
+	
+	<mx:Metadata>
+		[Event(name="ValidateError")]
+		[Event(name="ValidateOK")]
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import utils.Config;
+			import utils.*;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.managers.PopUpManager;
+			import utils.FormValidator;
+			
+			[Bindable]
+			public var ip:XML;
+			
+			private var formValidator:FormValidator=new FormValidator();	
+		
+			private function init():void{
+				gwRPC.url = Utils.get_url("/gateway/get_inf");
+				gwRPC.send();
+				gwRequest.url = Utils.get_url("/gateway/save");
+			}
+			
+			private function addValidators():void {
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					//submit.enabled=false;
+					dispatchEvent(new Event("ValidateError"));
+				};
+				formValidator.passedCallBack=function():void{
+					//submit.enabled=true;
+					dispatchEvent(new Event("ValidateOK"));
+				};
+			}
+			
+			private function set_gateway(event:ResultEvent):void {
+				gw = event.result.Gateway;
+			}
+			
+			private function refresh():void {
+				set_data();
+				glow.play();
+			}
+			
+			private function showError(event:FaultEvent):void {
+				utils.Alert.show(Str.xml.server_busy.@string,Str.xml.error.@string);
+			}
+			
+			public function save():void {
+				this.enabled = false;
+				gwRequest.send();
+			}
+			
+			private function toggle_relay():void {
+				l_relay_ip.visible = relay.selected;
+				l_relay_port.visible = relay.selected;
+				l_relay_ip.includeInLayout = relay.selected;
+				l_relay_port.includeInLayout = relay.selected;
+			}
+			
+			private function set_data():void {
+				gw.name = gw_name.text;
+				gw.host = gw_address.text;
+				gw.port = port.text;
+				gw.protocal = protocal.text;
+				gw.apptype = apptype.text;
+				gw.web_port = web_port.text;
+				gw.driver = driver.text;
+				gw.use_manage_server = use_server.selected? "1":"0";
+				gw.manage_server_url = manage_server_url.text;
+				gw.relay = relay.selected?"1":"0"
+				gw.relay_ip = relay_ip.text;
+				gw.relay_port = relay_port.text;
+				this.enabled = true;
+			}
+			
+			public function reload():void {
+				gw_name.text = gw.name;
+				gw_address.text = gw.host;
+				port.text = gw.port;
+				protocal.text = gw.protocal;
+				apptype.text = gw.apptype;
+				web_port.text = gw.web_port;
+				driver.text = gw.driver;
+				relay.selected = gw.relay == "1"
+				relay_ip.text = gw.relay_ip;
+				relay_port.text = gw.relay_port;
+				use_server.selected = gw.use_manage_server == "1";
+				manage_server_url.text = gw.manage_server_url;
+			}
+			
+			private function test_server():void {
+				test.url = manage_server_url.text + "/testconnection.txt";
+				test.send();
+			}
+			
+			private function test_ok():void {
+				Alert.show(Str.xml.connect_success.@string);
+			}
+			
+			private function test_failed():void {
+				Alert.show(Str.xml.connect_failure.@string);
+			}
+			
+			[Bindable]
+			private var gw:Object;
+		]]>
+	</mx:Script>	
+	
+	<mx:HTTPService id="test" result="test_ok()" fault="test_failed()" requestTimeout="2"/>
+	<mx:HTTPService id="gwRPC" result="set_gateway(event)"/>
+	<mx:HTTPService id="gwRequest" 
+		useProxy="false" method="POST" showBusyCursor="true" result="refresh()" fault="showError(event)">
+    	<mx:request xmlns="">
+        	<name>
+        		{gw_name.text}
+        	</name>
+        	<host>
+        		{gw_address.text}
+        	</host>
+        	<port>
+        		{port.text}
+        	</port>
+        	<protocal>
+        		{protocal.text}
+        	</protocal>
+        	<apptype>
+        		{apptype.text}
+        	</apptype>
+        	<web_port>
+        		{web_port.text}
+        	</web_port>
+        	<driver>
+        		{driver.text}
+        	</driver>
+        	<use_manage_server>
+        		{use_server.selected? "1":"0"}
+        	</use_manage_server>
+        	<manage_server_url>
+        		{manage_server_url.text}
+        	</manage_server_url>
+        	<relay>
+        		{relay.selected? "1": "0"}
+        	</relay>
+        	<relay_ip>
+        		{relay_ip.text}
+        	</relay_ip>
+        	<relay_port>
+        		{relay_port.text}
+        	</relay_port>
+        </mx:request>        
+    </mx:HTTPService>
+    
+    <mx:Glow id="glow" target="{this}" repeatCount="3" effectEnd="utils.Alert.show(Str.xml.saved.@string);"/>
+    <mx:Fade id="fadeIn" alphaFrom="0" alphaTo="1"/>
+    <mx:Fade id="fadeOut" alphaFrom="1" alphaTo="0"/>
+	
+	<mx:Array id="validators">
+		<mx:Validator required="true" property="text" source="{gw_name}" requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.gateway.@string + Str.xml.split.@string + Str.xml.name.@string}"/>
+		<u:IPValidator required="true" property="text" source="{gw_address}" errorMessage="{Str.xml.invalid_ip.@string}" requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.valid.@string + Str.xml.split.@string + 'IP' + Str.xml.split.@string + Str.xml.address.@string}"/>
+		<u:IPValidator required="false" property="text" source="{relay_ip}" errorMessage="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.valid.@string + Str.xml.split.@string + 'IP' +  Str.xml.address.@string}"/>
+		<mx:NumberValidator required="true" source="{port}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="65535" 
+			requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string}" 
+			lowerThanMinError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			exceedsMaxError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			negativeError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			integerError="{Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"  
+			invalidCharError="{Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"/>
+		
+		<mx:NumberValidator required="false" source="{relay_port}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="65535" 
+			lowerThanMinError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			exceedsMaxError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			negativeError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			integerError="{Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"  
+			invalidCharError="{Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"/>	
+		
+		<mx:NumberValidator required="true" source="{web_port}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="65535" 
+			requiredFieldError="{Str.xml.lack.@string + Str.xml.split.@string + Str.xml.web.@string + Str.xml.split.@string + Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string}请填写web服务端口" 
+			lowerThanMinError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			exceedsMaxError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			negativeError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			integerError="{Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"  
+			invalidCharError="{Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"/>
+	</mx:Array>
+	
+	<mx:HBox width="100%" height="100%" paddingLeft="10" paddingRight="10">
+		<mx:Canvas styleName="menu" borderSides="left right bottom" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+			<mx:Form verticalScrollPolicy="off" horizontalScrollPolicy="off" verticalGap="3" top="25" left="5" right="5">
+				<mx:FormItem label="{Str.xml.gateway.@string + Str.xml.split.@string + Str.xml.name.@string}" required="true">
+					<mx:TextInput id="gw_name" text="{gw.name}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.gateway.@string + Str.xml.split.@string + Str.xml.address.@string}" required="true">
+					<mx:TextInput id="gw_address" text="{ip.@value}" enabled="false"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string}" required="true" toolTip="0-65535">
+					<mx:TextInput id="port" text="{gw.port}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.protocal.@string + Str.xml.split.@string + Str.xml.type.@string}" required="true">
+					<mx:TextInput id="protocal" text="{gw.protocal}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.application.@string + Str.xml.split.@string + Str.xml.type.@string}" required="true">
+					<mx:TextInput id="apptype" text="{gw.apptype}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{'web' + Str.xml.split.@string + Str.xml.port.@string}" required="true" toolTip="0-65535之间的数字">
+					<mx:TextInput id="web_port" text="{gw.web_port}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.driver.@string}" required="true">
+					<mx:TextInput id="driver" text="{gw.driver}"/>
+				</mx:FormItem>
+				<mx:FormItem label="{Str.xml.enable.@string + Str.xml.split.@string + Str.xml.relay.@string}">
+					<mx:CheckBox id="relay" selected="{gw.relay == '1'}" click="toggle_relay()"/>
+				</mx:FormItem>
+				<mx:FormItem id="l_relay_ip" label="{Str.xml.relay.@string + Str.xml.split.@string + Str.xml.destination.@string}" 
+					visible="{gw.relay == '1'}" includeInLayout="{gw.relay == '1'}"
+					showEffect="{fadeIn}" hideEffect="{fadeOut}">
+					<mx:TextInput id="relay_ip" text="{gw.relay_ip}"/>
+				</mx:FormItem>
+				<mx:FormItem id="l_relay_port" label="{Str.xml.relay.@string + Str.xml.split.@string + Str.xml.port.@string}" 
+					visible="{gw.relay == '1'}" includeInLayout="{gw.relay == '1'}"
+					showEffect="{fadeIn}" hideEffect="{fadeOut}">
+					<mx:TextInput id="relay_port" text="{gw.relay_port}"/>
+				</mx:FormItem>
+				<mx:Spacer height="15" width="100%"/>
+				<mx:FormItem label="{Str.xml.touse.@string + Str.xml.split.@string + Str.xml.manage_server.@string}">
+					<mx:CheckBox id="use_server" label="" selected="{gw.use_manage_server == 1}"/>
+				</mx:FormItem>
+				<mx:FormItem label="URL" required="true" 
+					visible="{use_server.selected}" showEffect="{fadeIn}" hideEffect="{fadeOut}">
+					<mx:TextInput id="manage_server_url" text="{gw.manage_server_url}"/>
+				</mx:FormItem>
+				<mx:FormItem visible="{use_server.selected}" showEffect="{fadeIn}" hideEffect="{fadeOut}">
+					<mx:Button label="{Str.xml.ping.@string}" click="test_server()"/>	
+				</mx:FormItem>
+			</mx:Form>
+			<v:StyleTitle text="{Str.xml.gateway.@string + Str.xml.split.@string + Str.xml.inf.@string}" wizColor="true"/>
+		</mx:Canvas>
+	</mx:HBox>
+</mx:Canvas>

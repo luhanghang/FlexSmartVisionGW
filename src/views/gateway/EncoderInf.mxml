@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%"
+	xmlns:u="utils.*" xmlns:v="views.*" show="init()">
+	
+	<mx:Metadata>
+		[Event(name="cancelEdit")]
+		[Event(name="Added",type="events.EncoderEvent")]	
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.rpc.events.ResultEvent;
+			import utils.*;
+			import utils.FormValidator;
+			import mx.utils.StringUtil;
+			import events.EncoderEvent;
+		
+			[Bindable]
+			private var encoder:XML;
+			
+			[Bindable]
+			public var encoders:XMLList;
+			
+			[Bindable]
+			public var DEVICES:XMLList;
+			
+			[Bindable]
+			private var gFilter:Array = [Utils.neonFilter()];
+			
+			private var formValidator:FormValidator=new FormValidator();
+			private var params:URLVariables = new URLVariables;
+			
+			public function init():void{
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+			}
+			
+			private function deviceChanged():void {
+				var node:XML = device_name.selectedItem as XML;
+				vendor.text = node.vendor;
+				device_type.text = node.type;
+				driver.text = node.driver;	
+			}
+			
+			private function set_data(event:ResultEvent):void {
+				if(encoder == null) {
+					encoder = XML(event.result);
+					dispatchEvent(new EncoderEvent("Added", encoder));		
+				} else {
+					encoder.@name = params['name'];
+					encoder.@address = params['address'];
+					encoder.@service_port = params['service_port'];
+					encoder.@device_name = params['device_name'];
+					encoder.@ptz_protocal = params['ptz_protocal'];
+					encoder.@io_addr = params['io_addr'];
+					encoder.@audio_port = params['audio_port'];
+					encoder.@connect_type = params['connect_type'];
+				}
+				submit.enabled = true;
+				glow.play();
+			}
+			
+			private function save():void {
+				encoderRPC.url = Utils.get_url("/devices/save");
+				params['id'] = encoder==null?"":encoder.@id;
+        		params['name'] = StringUtil.trim(encoder_name.text);
+        		params['address'] = address.text;
+        		params['service_port'] = service_port.text;
+        		params['device_name'] = device_name.text;
+        		params['device_type'] = device_name.selectedItem.type;
+        		params['vendor'] = device_name.selectedItem.vendor;
+        		params['guid'] = device_name.selectedItem.GUID;
+        	 	params['driver'] = device_name.selectedItem.driver;
+        	 	params['ptz_protocal'] = ptz_protocal.text;
+        		params['io_addr'] = io_addr.text;
+        		params['audio_port'] = audio_port.text;
+        		params['connect_type'] = connect_type.selectedIndex;
+				encoderRPC.send(params);
+				submit.enabled = false;
+			}
+			
+			private function get_device_index():Number {
+				if(!encoder) return -1;
+				for(var i:Number = 0; i < DEVICES.length(); i++) {
+					if(encoder.@device_name == DEVICES[i].name)
+						return i;
+				}
+				return -1;
+			}
+			
+			private function get_ptz_protocal_index():Number {
+				return 0;
+				if(!encoder) return -1;
+				for(var i:Number = 0; i < Gateway.DICTIONARY.PTZProtocals.Item.length(); i++) {
+					if(encoder.@ptz_protocal == Gateway.DICTIONARY.PTZProtocals.Item[i].@name)
+						return i;
+				}
+				return -1;
+			}
+			
+			public function set_encoder(encoder:XML):void {
+				this.encoder = encoder;
+				if(device_name)
+					device_name.selectedIndex = get_device_index();
+				if(ptz_protocal)
+					ptz_protocal.selectedIndex = get_ptz_protocal_index();
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="encoderRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" resultFormat="xml" result="set_data(event)"/>        
+    
+    <mx:Glow id="glow" target="{this}" repeatCount="3" effectEnd="utils.Alert.show(Str.xml.saved.@string);"/>
+	
+	<mx:Array id="validators">
+		<u:UniqueValidatorXML source="{encoder_name}" selfObj="{encoder}" required="true" property="text" list="{encoders}" field="@name" errorMessage="{Str.xml.encoder.@string + Str.xml.spit.@string + Str.xml.name.@string + Str.xml.split.@string + Str.xml.error_exists.@string}" requiredFieldError="{Str.xml.lack.@string + Str.xml.spit.@string + Str.xml.encoder.@string + Str.xml.split.@string + Str.xml.name.@string}"/>
+		<!--<u:UniqueIPValidatorXML source="{address}" selfObj="{encoder}" required="true" property="text" list="{encoders}" field="@address"  requiredFieldError="{Str.xml.lack.@string + Str.xml.spit.@string + Str.xml.device.@string + Str.xml.split.@string + Str.xml.address.@string}"/>
+		-->
+		<mx:NumberValidator required="true" source="{service_port}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="65535" 
+			requiredFieldError="{Str.xml.lack.@string + Str.xml.spit.@string + Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string}" 
+			lowerThanMinError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			exceedsMaxError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			negativeError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			integerError="{Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"  
+			invalidCharError="{Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"/>
+		<mx:NumberValidator required="true" source="{audio_port}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="65535" 
+			requiredFieldError="{Str.xml.lack.@string + Str.xml.spit.@string + Str.xml.audio.@string + Str.xml.split.@string + Str.xml.port.@string}" 
+			lowerThanMinError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			exceedsMaxError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			negativeError="{Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_scope_0_65535.@string}" 
+			integerError="{Str.xml.audio.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"  
+			invalidCharError="{Str.xml.audio.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"/>	
+		<mx:NumberValidator required="true" source="{io_addr}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="255" 
+			requiredFieldError="{Str.xml.lack.@string + Str.xml.spit.@string + 'IO' + Str.xml.split.@string + Str.xml.address.@string}" 
+			lowerThanMinError="IO{Str.xml.split.@string + Str.xml.address.@string  + Str.xml.split.@string + Str.xml.error_scope_0_255.@string}" 
+			exceedsMaxError="IO{Str.xml.split.@string + Str.xml.address.@string  + Str.xml.split.@string + Str.xml.error_scope_0_255.@string}" 
+			negativeError="IO{Str.xml.split.@string + Str.xml.split.@string + Str.xml.address.@string  + Str.xml.split.@string + Str.xml.error_scope_0_255.@string}" 
+			integerError="IO{Str.xml.split.@string + Str.xml.address.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"  
+			invalidCharError="IO{Str.xml.address.@string + Str.xml.split.@string + Str.xml.port.@string + Str.xml.split.@string + Str.xml.error_integer.@string}"/>
+		<mx:Validator source="{device_name}" property="text" required="true" requiredFieldError="{Str.xml.lack.@string + Str.xml.spit.@string + Str.xml.device.@string + Str.xml.split.@string + Str.xml.name.@string}"/>
+		<mx:Validator source="{device_type}" property="text" required="true" requiredFieldError="{Str.xml.lack.@string + Str.xml.spit.@string + Str.xml.device.@string + Str.xml.split.@string + Str.xml.type.@string}"/>
+		<mx:Validator source="{ptz_protocal}" property="text" required="true" requiredFieldError="{Str.xml.lack.@string + Str.xml.spit.@string + Str.xml.ptz.@string + Str.xml.split.@string + Str.xml.protocal.@string}"/>
+		<mx:Validator source="{driver}" property="text" required="true" requiredFieldError="{Str.xml.lack.@string + Str.xml.spit.@string + Str.xml.driver.@string}"/>	
+	</mx:Array>
+	<mx:VBox height="100%" width="100%">
+		<mx:Form defaultButton="{submit}" width="100%" verticalGap="8">
+			<mx:FormItem label="{Str.xml.encoder.@string + Str.xml.split.@string + Str.xml.name.@string}" required="true">
+				<mx:TextInput id="encoder_name" text="{encoder.@name}" />
+			</mx:FormItem>
+			<mx:FormItem label="{Str.xml.device.@string + Str.xml.split.@string + Str.xml.address.@string}" required="true" visible="false" includeInLayout="false">
+				<!--<mx:TextInput id="address" text="{encoder.@address}"/>-->
+				<mx:TextInput id="address" text="192.168.1.200"/>
+			</mx:FormItem>
+			<mx:FormItem label="{Str.xml.service.@string + Str.xml.split.@string + Str.xml.port.@string}" required="true">
+				<mx:TextInput id="service_port" text="{encoder.@service_port}"/>
+			</mx:FormItem>
+			<mx:FormItem label="{Str.xml.audio.@string + Str.xml.split.@string + Str.xml.port.@string}" required="true">
+				<mx:TextInput id="audio_port" text="{encoder.@audio_port}"/>
+			</mx:FormItem>
+			<mx:FormItem label="{Str.xml.device.@string + Str.xml.split.@string + Str.xml.name.@string}" required="true">
+				<mx:ComboBox id="device_name" dataProvider="{DEVICES}" 
+					labelField="name" selectedIndex="{get_device_index()}" change="deviceChanged()"/>
+			</mx:FormItem>
+			<mx:FormItem label="{Str.xml.vendor.@string}" visible="false" includeInLayout="false">
+				<mx:TextInput id="vendor" enabled="false" text="{device_name.selectedItem.vendor}"/>
+			</mx:FormItem>
+			<mx:FormItem label="{Str.xml.device.@string + Str.xml.split.@string + Str.xml.type.@string}" visible="false" includeInLayout="false">
+				<mx:TextInput id="device_type" enabled="false" text="{device_name.selectedItem.type}"/>
+			</mx:FormItem>
+			<mx:FormItem label="{Str.xml.driver.@string}" visible="false" includeInLayout="false">
+				<mx:TextInput id="driver" enabled="false" text="{device_name.selectedItem.driver}"/>
+			</mx:FormItem>
+			<mx:FormItem label="{Str.xml.ptz.@string + Str.xml.split.@string + Str.xml.protocal.@string}" required="true" visible="true" includeInLayout="true">
+				<mx:ComboBox id="ptz_protocal" dataProvider="{Gateway.DICTIONARY.PTZProtocals.Item}" labelField="@name" selectedIndex="{get_ptz_protocal_index()}"/>
+				<!--<mx:ComboBox id="ptz_protocal" dataProvider="{Gateway.DICTIONARY.PTZProtocals.Item}" labelField="@name" selectedIndex="0"/>-->
+			</mx:FormItem>
+			<mx:FormItem label="IO{Str.xml.split.@string + Str.xml.address.@string}" required="true" visible="true" includeInLayout="true">
+				<mx:TextInput id="io_addr" text="{encoder.@io_addr}"/>
+				<!--<mx:TextInput id="io_addr" text="10"/>-->
+			</mx:FormItem>
+			<mx:FormItem label="{Str.xml.connect.@string + Str.xml.split.@string + Str.xml.type.@string}" required="true">
+				<mx:ComboBox id="connect_type" dataProvider="{Gateway.DICTIONARY.ConnectType.Item}" 
+					labelField="@name" selectedIndex="{encoder.@connect_type}"/>
+			</mx:FormItem>
+		</mx:Form>
+		<mx:Spacer height="100%"/>
+		<mx:HBox width="100%" horizontalAlign="center" paddingBottom="5">
+			<mx:Button label="{Str.xml.save.@string}" id="submit" click="save()"/>
+			<mx:Button label="{Str.xml.cancel.@string}" click="dispatchEvent(new Event('cancelEdit'))" visible="{encoder==null}"/>
+		</mx:HBox>
+	</mx:VBox>
+</mx:Canvas>

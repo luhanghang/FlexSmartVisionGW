@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%"
+	xmlns:u="utils.*" creationComplete="init()">
+	
+	<mx:Metadata>
+		[Event(name="cancel")]
+		[Event(name="complete")]
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.rpc.events.ResultEvent;
+			import utils.*;
+			import mx.events.CloseEvent;
+			import utils.Icons;
+			
+			public var xml:XML;	
+			
+			[Bindable]
+			private var spots:XML;
+			public var encoder:XML;
+			public function init():void{
+				
+			}
+			
+			public function showSpots(xml:XML):void {
+				this.xml = xml;
+				spots = <Spots/>;
+				for each(var tag:Object in xml.OBJECT[0].MODULE[0].TAG) {
+					var spot:XML = <Spot/>
+					spot.@id = tag.@id;
+					spot.@name = tag.PROP[0];
+					spots.appendChild(spot);
+				}
+			}
+			
+			private function iconFunc(item:XML):* {
+				return Icons.MONITOR;		
+			}
+			
+			private function confirm_cancel():void {
+				Alert.show(Str.xml.confirm_cancel.@string, "", mx.controls.Alert.YES|mx.controls.Alert.NO, this, cancel, null, mx.controls.Alert.NO);	
+			}
+			
+			private function cancel(event:CloseEvent):void {
+				if(event.detail == mx.controls.Alert.YES) {
+					this.dispatchEvent(new Event("cancel"));
+				}
+			}
+			
+			private function start_import():void {
+				importRPC.url = Utils.get_url("/devices/import_spots");
+				var params:URLVariables = new URLVariables;
+				params["src_xml"] = xml.toXMLString();
+				params["id"] = encoder.@id;
+				params["ids"] = new Array;
+				for each(var spot:Object in spotTree.selectedItems) {
+					params["ids"].push((spot as XML).@id);
+				}
+				importRPC.send(params);			
+			}
+			
+			private function show_xml(event:ResultEvent):void {
+				var en:XML = XML(event.result);
+				for each(var spot:Object in en.Spot) {
+					encoder.appendChild(spot);
+				}
+				dispatchEvent(new Event("complete"));
+				Alert.show(Str.xml.complete.@string);
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="importRPC" method="post" useProxy="false" 
+		resultFormat="xml" result="show_xml(event)" showBusyCursor="true"/>
+	
+	<mx:VBox width="100%" height="100%" verticalGap="10">
+		<mx:Tree id="spotTree" width="100%" height="100%" dataProvider="{spots.Spot}"  
+			showRoot="false" rowHeight="20" 
+			iconFunction="iconFunc" click="start.enabled = spotTree.selectedIndices.length > 0"
+			labelField="@name" allowMultipleSelection="true" allowDragSelection="true"/>
+		<mx:HBox width="100%" horizontalAlign="center" paddingBottom="5">
+			<mx:Button id="start" label="{Str.xml.start_to_import}" enabled="false" click="start_import()"/>
+			<mx:Button label="{Str.xml.cancel.@string}" click="confirm_cancel()"/>
+		</mx:HBox>		
+	</mx:VBox>
+</mx:Canvas>

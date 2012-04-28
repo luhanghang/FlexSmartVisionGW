@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" width="500" height="530" creationComplete="init();"
+	xmlns:u="utils.*" xmlns:v="views.*" title="{Str.xml.static_routes.@string}" xmlns:settings="views.settings.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.rpc.events.ResultEvent;
+			import mx.events.CloseEvent;
+			import utils.*;
+			import mx.events.DataGridEvent;
+			import mx.utils.StringUtil;
+			
+			[Bindable]
+			private var route_list:XML;
+			
+			private function init():void {
+				routes.url = Utils.get_url("/routes/list");
+				routes.send();		
+			}
+			
+			private function set_routes(event:ResultEvent):void {
+				route_list = XML(event.result);
+			}
+			
+			private function save(event:DataGridEvent):void {
+				
+			}	
+			
+			private function remove_routes(event:CloseEvent):void {
+				if(event.detail == mx.controls.Alert.YES) {
+					delete route_list.route[list.selectedIndex];
+				}	
+			}
+			
+			private function new_route():void {
+				var length:Number = route_list.route.length();
+				for(var i:Number = 0; i < length; i++) {
+					var r:XML = route_list.route[i];
+					if(StringUtil.trim(r.net)=="" && StringUtil.trim(r.mask)=="" && StringUtil.trim(r.gateway)=="" && StringUtil.trim(r.device)=="") {
+						delete route_list.route[i];
+					}
+				}
+				var route:XML = <route/>;
+				route_list.appendChild(route);
+				list.selectedIndex = route_list.route.length() + 1;
+			}
+			
+			private function save_list():void {
+				routes_save.url = Utils.get_url("/routes/save");
+				var parameters:URLVariables = new URLVariables;
+				parameters.xml = route_list.toXMLString();
+				routes_save.send(parameters);	
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="routes" method="POST" showBusyCursor="true" useProxy="false" resultFormat="xml" result="set_routes(event)"/>
+	<mx:HTTPService id="routes_save" method="POST" showBusyCursor="true" useProxy="false" resultFormat="text" result="Alert.show(Str.xml.saved.@string)"/>
+	
+	<mx:VBox horizontalAlign="center" width="100%" height="100%" y="1" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+		<mx:DataGrid id="list" width="100%" height="100%" 
+			editable="true" itemEditEnd="save(event)" 
+			dataProvider="{route_list.route}" dragEnabled="true">
+			<mx:columns>
+				<mx:DataGridColumn headerText="{Str.xml.destination.@string + Str.xml.split.@string + Str.xml.network.@string}" dataField="net" width="150" resizable="false"/>
+				<mx:DataGridColumn headerText="{Str.xml.mask.@string}" dataField="mask" width="150"/>
+				<mx:DataGridColumn headerText="{Str.xml.destination.@string + Str.xml.split.@string + Str.xml.gateway.@string}" dataField="gateway" width="150"/>
+				<mx:DataGridColumn headerText="{Str.xml.eth.@string}" dataField="device"/>
+			</mx:columns>
+		</mx:DataGrid>
+		<mx:VBox width="100%">
+			<mx:HBox width="100%" verticalAlign="bottom">
+				<mx:Spacer width="5"/>
+				<mx:Button label="{Str.xml.add.@string}" click="new_route()"/>
+				<mx:Button label="{Str.xml.save.@string}" click="save_list()"/>
+				<mx:Spacer width="100%"/>
+				<v:Trash src="{list}" toolTip="{Str.xml.remove.@string}"
+						 callBack="remove_routes" confirm="{Str.xml.confirm_remove_routes.@string}"/>	
+				<mx:Spacer width="5"/>
+			</mx:HBox>
+			<mx:Spacer height="5"/>
+		</mx:VBox>
+	</mx:VBox>
+</v:TitleWin>

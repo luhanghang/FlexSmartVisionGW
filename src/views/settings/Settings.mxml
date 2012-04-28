@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" width="500" height="530" creationComplete="init();"
+	xmlns:u="utils.*" xmlns:v="views.*" title="{Str.xml.system_setting.@string}" xmlns:settings="views.settings.*"
+	xmlns:pv3dEffects="ws.tink.flex.pv3dEffects.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.rpc.events.ResultEvent;
+			import mx.collections.ArrayCollection;
+			import mx.events.CloseEvent;
+			import mx.controls.Alert;
+			import utils.*;
+			
+			[Bindable]
+			private var ip:XML = <ip value=""/>;
+			
+			[Bindable]
+			private var networkStr:String;
+			
+			[Bindable]
+			private var gatewayStr:String;
+			
+			[Bindable]
+			private var backupStr:String;
+			
+			private function init():void {
+					var timer:Timer = new Timer(3000);
+					timer.addEventListener(TimerEvent.TIMER, check_host);
+					timer.start();
+					networkStr = Str.xml.network.@string + Str.xml.split.@string + Str.xml.setting.@string;
+					gatewayStr = Str.xml.gateway.@string + Str.xml.split.@string + Str.xml.inf.@string;
+					backupStr =  Str.xml.backup.@string + Str.xml.split.@string + Str.xml.server.@string; 
+					bb.selectedIndex = 0;
+			}
+			
+			private function check_host(event:TimerEvent):void {
+				hostRPC.url = Utils.get_url("/backup/ishost");
+				hostRPC.send();		
+			}
+			
+			private function toggle_switch(event:ResultEvent):void {
+				var host:String = event.result.toString();
+				b_switch_server.visible = host == "1";
+				b_switch_server.includeInLayout = b_switch_server.visible;
+			}
+			
+			public function enableSubmit(enabled:Boolean=true):void {
+				submit.enabled = enabled;
+			}
+			
+			private function save():void {
+				switch (bb.selectedIndex) {
+					case 0:
+						net.do_submit();
+						break;
+					case 1:
+						gateway.save();
+						break;
+					default:
+						//backup.save();
+				}	
+			}
+			
+			private function reload():void {
+				if(bb.selectedIndex == 0)
+					net.reload();
+				else
+					gateway.reload();	
+			}
+			
+			private function confirm_switch_server():void {
+				utils.Alert.show(Str.xml.confirm_switch_server.@string, Str.xml.confirm_switch_server.@string, mx.controls.Alert.YES|mx.controls.Alert.NO, this, switch_server, null, mx.controls.Alert.NO);
+			}
+			
+			private function switch_server(event:CloseEvent):void {
+				if (event.detail == mx.controls.Alert.YES) {
+					switchRPC.url = Utils.get_url("/backup/switch_server");
+					switchRPC.send();	
+				}
+			}
+			
+			private function finish_switch(event:ResultEvent):void {
+				
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="netRebootRPC"/>
+	<mx:HTTPService id="hostRPC" useProxy="false" showBusyCursor="false" method="POST" resultFormat="text" result="toggle_switch(event)" fault="b_switch_server.visible = false; b_switch_server.includeInLayout = false;"/>
+	<mx:HTTPService id="switchRPC" useProxy="false" showBusyCursor="false" method="POST" resultFormat="text" result="finish_switch(event);"/>
+	
+	<mx:Fade id="hideFlip" alphaFrom="1" alphaTo="0"/>
+    <mx:Fade id="showFlip" alphaFrom="0" alphaTo="1"/>
+    
+	<mx:VBox horizontalAlign="center" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+		<mx:Spacer height="5"/>
+		<mx:ToggleButtonBar id="bb" dataProvider="{[networkStr,gatewayStr,backupStr]}"/>
+			
+		<mx:Spacer height="5"/>
+		<mx:ViewStack id="vs" selectedIndex="{bb.selectedIndex}" width="350" height="380">
+			<settings:NetSetting id="net" ip="{ip}"
+				ValidateError="enableSubmit(false)" ValidateOK="enableSubmit()"
+				hideEffect="{hideFlip}" showEffect="{showFlip}"/>
+			<settings:GatewaySetting id="gateway" ip="{ip}" 
+				ValidateError="enableSubmit(false)" ValidateOK="enableSubmit()"
+				hideEffect="{hideFlip}" showEffect="{showFlip}"/>	
+			<settings:Backup id="backup" 
+				ValidateError="enableSubmit(false)" ValidateOK="enableSubmit()"
+				hideEffect="{hideFlip}" showEffect="{showFlip}"/>
+		</mx:ViewStack>
+		<mx:Spacer height="10"/>
+		<mx:HBox width="100%" horizontalAlign="center">
+			<mx:Button label="{Str.xml.save.@string}" id="submit" click="save()"/>
+			<mx:Button label="{Str.xml.restore.@string}" click="reload()"/>
+			<mx:Button id="b_switch_server" label="{Str.xml.switch_server.@string}" click="confirm_switch_server()" visible="false" includeInLayout="false"/>
+		</mx:HBox>
+	</mx:VBox>
+</v:TitleWin>

@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" width="485" title="会议管理" 
+	xmlns:views="views.*" creationComplete="init()" xmlns:v="views.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.events.ItemClickEvent;
+			import mx.events.DragEvent;
+			import mx.events.CloseEvent;
+			import mx.controls.Alert;
+			import mx.utils.ObjectProxy;
+			import mx.rpc.events.ResultEvent;
+			import mx.collections.ArrayCollection;
+			import utils.Utils;
+			import mx.core.DragSource;
+			import mx.core.UIComponent;
+			import mx.managers.DragManager;
+			import mx.controls.buttonBarClasses.ButtonBarButton;
+			
+			private var bSave:ButtonBarButton;
+			private var bStart:ButtonBarButton;
+			
+			[Bindable]
+			private var conf:XML;
+			
+			[Bindable]
+			private var allVenues:XML;
+			
+			[Bindable]
+			private var venues:XML;
+			
+			[Bindable]
+			private var manager:XML;
+			
+			[Bindable]
+			private var user:XML;
+			
+			private function init():void {
+				bSave = buttons.getChildAt(0) as ButtonBarButton;
+				bStart = buttons.getChildAt(1) as ButtonBarButton;
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					bSave.enabled=false;
+					bStart.enabled = false;
+				};
+				formValidator.passedCallBack=function():void{
+					bSave.enabled=true;
+					bStart.enabled = true;
+				};
+				get_venues();
+			}
+			
+			public function get_venues():void {
+				confRPC.url = Utils.get_url("/meeting/conference/inf");
+				confRPC.send();
+			}
+			
+			private function set_conf(event:ResultEvent):void {
+				conf = XML(event.result);
+				allVenues = conf.AllVenues[0];
+				venues = conf.Venues[0];
+				bSave.enabled = bSave.enabled && venues.Venue.length() > 0;
+				bStart.enabled = bSave.enabled;
+				var users:XMLList = conf.Users.User;
+				if(users[0].@manager == "true") {
+					manager = users[0];
+					user = users[1];
+				} else {
+					manager = users[1];
+					user = users[0];
+				}	
+				state_changed();
+			}
+			
+			private function remove_venues(event:CloseEvent):void {
+				var children:XMLList = venues.Venue;
+                for(var i:int = 0; i < children.length(); i++) {
+                   	if( children[i] == dgVenues.selectedItem ) {
+                       	delete children[i];
+                   	}
+                }
+                bSave.enabled = bSave.enabled && venues.Venue.length() > 0;
+				bStart.enabled = bSave.enabled;
+			}
+			
+			private function dragEnter(event:DragEvent):void {
+				if(event.dragInitiator == dgAll && event.dragSource.hasFormat("items") ) {
+					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+				}	
+			}
+			
+			private function dragOver(event:DragEvent):void {
+				DragManager.showFeedback(DragManager.COPY);	
+			}
+			
+			private function dragDrop(event:DragEvent):void {
+				for each(var source:XML in dgAll.selectedItems) {
+					var exists:Boolean = false;
+					for each(var target:XML in venues.Venue) {
+						if(source.@id == target.@id) {
+							exists = true;
+							break;
+						}
+					}
+					if(exists) continue;
+					var item:XML = <Venue/>;
+					item.@id = source.@id;
+					item.name = source.name;
+					venues.appendChild(item);
+					bSave.enabled = venues.Venue.length() > 0;
+					bStart.enabled = bSave.enabled;
+				}	
+				dgAll.selectedIndex = -1;
+			}
+			
+			private function do_toggle_conf(event:ResultEvent):void {
+				conf.state = event.result;
+				state_changed();
+			}
+			
+			private function state_changed():void {
+				if(conf.state == "0") {
+					bSave.enabled = true;
+					bStart.label = "开始会议";
+					main.enabled = true;
+					title= '视频会议 [状态:未开始]';
+				} else {
+					bSave.enabled = false;
+					bStart.label = "结束会议";
+					bStart.enabled = true;
+					main.enabled = false;
+					title= '视频会议 [状态:进行中]';
+				}		
+			}
+			
+			private function buttonsClick(event:ItemClickEvent):void {
+				switch(event.index) {
+					case 0:
+						save_inf();
+						break;
+					case 1:
+						toggleConf();
+						break;
+				}
+			}
+			
+			private function save_inf():void {
+				confSaveRPC.url = Utils.get_url("/meeting/conference/save");
+				var params:URLVariables = new URLVariables;
+				params.name = conf_name.text;
+				params.description = description.text;
+				params.manager_account = manager_account.text;
+				params.manager_passwd = manager_passwd.text;
+				params.user_account = user_account.text;
+				params.user_passwd = user_passwd.text;
+				params.venue_id = new Array();
+				for each(var item:XML in venues.Venue) {
+					params.venue_id.push(item.@id);
+				}
+				confSaveRPC.send(params);  	
+			}
+			
+			private function toggleConf():void {
+				var confirm:String = "确定";
+				confirm += conf.state == "0"? "开始会议":"结束会议";
+				utils.Alert.show(confirm, "" , Alert.YES|Alert.NO, this, toggle_conf, null, Alert.NO);
+			}
+			
+			private function toggle_conf(event:CloseEvent):void {
+				if(event.detail == Alert.YES) {
+					var state:String = "1";
+					if(conf.state == "1") state = "0";
+					confStartRPC.url = Utils.get_url("/meeting/conference/set_state?state=" + state);
+					confStartRPC.send();	
+				}
+			}
+			
+			private function saved(event:ResultEvent):void {
+				utils.Alert.show("会议信息保存成功         ");
+				main.enabled = true;
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="confRPC" showBusyCursor="true" result="set_conf(event)" resultFormat="xml"/>
+	<mx:HTTPService id="confStartRPC" showBusyCursor="true" result="do_toggle_conf(event)" resultFormat="text"/>
+	<mx:HTTPService id="confSaveRPC" showBusyCursor="true" result="saved(event)" resultFormat="text" method="POST" useProxy="false"/>
+
+	<mx:Array id="validators">
+		<mx:Validator required="true" property="text" source="{conf_name}" requiredFieldError="请填写会议名称"/> 
+		<mx:Validator required="true" property="text" source="{manager_account}" requiredFieldError="请填写管理员账号"/>
+		<mx:Validator required="true" property="text" source="{manager_passwd}" requiredFieldError="请填写管理员密码"/>
+		<mx:Validator required="true" property="text" source="{user_account}" requiredFieldError="请填写与会者账号"/>
+		<mx:Validator required="true" property="text" source="{user_passwd}" requiredFieldError="请填写与会者密码"/>	
+	</mx:Array>
+
+	<mx:VBox id="main" width="100%" height="100%" paddingLeft="10" paddingRight="10" paddingTop="10" paddingBottom="10" 
+		horizontalCenter="0" verticalCenter="0" backgroundAlpha="0">
+		<mx:HBox width="100%">
+			<mx:Label text="会议名称" width="70"/>
+			<mx:TextInput id="conf_name" text="{conf.name}"/>
+		</mx:HBox>
+		<mx:HBox width="100%">
+			<mx:Label text="会议描述" width="70"/>
+			<mx:TextArea width="100%" height="100" id="description" text="{conf.description}"/>
+		</mx:HBox>
+		<mx:HRule width="100%" height="30" alpha="0.05"/>
+		<mx:HBox width="100%">
+			<mx:Label text="管理员账号" width="70"/>
+			<mx:TextInput id="manager_account" text="{manager.account}"/>
+			<mx:Label text="密码"/>
+			<mx:TextInput id="manager_passwd" text="{manager.passwd}"/>
+		</mx:HBox>
+		<mx:HBox width="100%">
+			<mx:Label text="与会者账号" width="70"/>
+			<mx:TextInput id="user_account" text="{user.account}"/>
+			<mx:Label text="密码"/>
+			<mx:TextInput id="user_passwd" text="{user.passwd}"/>
+		</mx:HBox>
+		<mx:HRule width="100%" height="30" alpha="0.05"/>
+		<mx:HBox width="100%" height="100%">
+			<mx:DataGrid id="dgVenues" width="50%" height="100%" 
+				dataProvider="{venues.Venue}" 
+				allowMultipleSelection="false" 
+				dragEnabled="true" 
+				dragMoveEnabled="false"
+				dragEnter="dragEnter(event)" 
+				dragOver="dragOver(event)" 
+				dragDrop="dragDrop(event)">
+				<mx:columns>
+					<mx:DataGridColumn headerText="本次会议会场" dataField="name"/>
+				</mx:columns>
+			</mx:DataGrid>
+			<mx:DataGrid id="dgAll" width="50%" height="100%" 
+				dataProvider="{allVenues.Venue}" 
+				allowMultipleSelection="true" 
+				dragEnabled="true" 
+				dragMoveEnabled="false">
+				<mx:columns>
+					<mx:DataGridColumn headerText="所有会场" dataField="name"/>
+				</mx:columns>
+			</mx:DataGrid>
+		</mx:HBox>
+	</mx:VBox>
+	<mx:ControlBar>
+		<mx:ButtonBar id="buttons" horizontalGap="-1" itemClick="buttonsClick(event)">
+			<mx:dataProvider>
+				<mx:String>保存</mx:String>
+				<mx:String>开始会议</mx:String>
+			</mx:dataProvider>
+		</mx:ButtonBar>
+		<mx:HBox horizontalAlign="right" width="100%">
+			<views:Trash src="{dgVenues}" confirm="确定删除选定的本次会议会场吗?      " callBack="remove_venues"/>
+		</mx:HBox>
+	</mx:ControlBar>
+</v:TitleWin>

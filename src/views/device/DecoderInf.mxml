@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TitleWin xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="282" height="218" title="解码器信息" creationComplete="init()" xmlns:utils="utils.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.rpc.events.ResultEvent;
+			import mx.collections.ArrayCollection;
+			import utils.FormValidator;
+			
+			[Bindable]
+			public var decoder:Object;
+			private var isNew:Boolean;
+			
+			[Bindable]
+			public var decoders:ArrayCollection;
+			
+			private function init():void{
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+			}
+			
+			private function submit_data():void {
+				isNew = !decoder.id;
+				submit.enabled = false;
+				var params:URLVariables = new URLVariables;
+				if(!isNew) params['id'] = decoder.id;
+				params['name'] = decoder_name.text;
+				params['address'] = address.text;
+				params['device_type'] = "1";
+				params['port'] = port.text;
+				decoderRequest.url = utils.Utils.get_url("/meeting/decoder/save");
+				decoderRequest.send(params);
+			}
+			
+			private function refresh(event:ResultEvent):void {
+				if(isNew) decoder.id = event.result.toString();
+				decoder.name = decoder_name.text;
+				decoder.address = address.text;
+				decoder.device_type = "1";
+				decoder.port = port.text;
+				callBack.call(this.parent, decoder, isNew);
+				close();	
+			}
+		]]>
+	</mx:Script>
+	<mx:HTTPService id="decoderRequest" 
+		useProxy="false" method="POST" showBusyCursor="true" result="refresh(event)" resultFormat="text"/>
+		
+	<mx:Array id="validators">
+		<utils:UniqueValidator property="text" required="true" source="{decoder_name}" selfObj="{decoder}"
+		 list="{decoders}" field="name" errorMessage="解码器名称已存在" requiredFieldError="请填写解码器名称"/>
+		<utils:UniqueIPValidator property="text" required="true" source="{address}" selfObj="{decoder}"
+		 list="{decoders}" field="address" errorMessage="解码器地址已存在" requiredFieldError="请填写解码器地址" ipError="请填写正确的IP地址"/>	
+		<mx:NumberValidator required="true" source="{port}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="65535" 
+			requiredFieldError="请填写服务端口" 
+			lowerThanMinError="端口范围应该在0-65535之间" 
+			exceedsMaxError="端口范围应该在0-65535之间" 
+			negativeError="端口范围应该在0-65535之间" 
+			integerError="服务端口应该为数字"  
+			invalidCharError="服务端口应该为数字"/>
+	</mx:Array>
+		
+	<mx:Form x="0" y="0" width="100%" height="100%" defaultButton="{submit}">
+		<mx:FormItem label="名称" required="true">
+			<mx:TextInput id="decoder_name" text="{decoder.name}"/>
+		</mx:FormItem>
+		<mx:FormItem label="地址" required="true">
+			<mx:TextInput id="address" text="{decoder.address}"/>
+		</mx:FormItem>
+		<mx:FormItem label="设备类型" required="true">
+			<mx:TextInput id="device_type" text="{decoder.device_type}"/>
+		</mx:FormItem>
+		<mx:FormItem label="服务端口" required="true">
+			<mx:TextInput id="port" text="{decoder.port}"/>
+		</mx:FormItem>
+	</mx:Form>
+	<mx:ControlBar>
+		<mx:Button label="保存" id="submit" enabled="false" click="submit_data()"/>
+		<mx:Button label="关闭" click="close()"/>
+	</mx:ControlBar>
+</TitleWin>

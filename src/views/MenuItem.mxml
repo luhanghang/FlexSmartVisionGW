@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:HBox xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="100%" alpha="1" useHandCursor="true" height="45">
+	
+	<mx:Metadata>
+		[Event(name="Popup",type="events.PopupEvent")]	
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import utils.Utils;
+		
+			[Bindable]
+			public var text:String;
+			
+			public function selected(s:Boolean):void {
+				b.styleName = s?"menuItemButtonSelected":"menuItemButton";
+				arrow.visible = s;
+			}
+		]]>
+	</mx:Script>
+	<mx:Canvas width="100%" height="100%">
+		<mx:Button x="0" y="0" id="b" styleName="menuItemButton" label="{text}" width="100%" height="100%"/>
+		<mx:Image source="assets/arrow_right.png" verticalCenter="0" right="2" id="arrow" visible="false"/>
+	</mx:Canvas>
+</mx:HBox>

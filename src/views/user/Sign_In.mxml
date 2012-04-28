@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" width="526" height="500"
+	xmlns:v="views.*" borderStyle="none" borderAlpha="0"
+	horizontalAlign="center" verticalAlign="middle" backgroundAlpha="0"
+ 	creationComplete="init()" showCloseButton="false" alpha="1.0">
+	<mx:Script>
+		<![CDATA[
+			import utils.*;
+			import mx.effects.Zoom;
+			import mx.controls.Alert;
+			import mx.rpc.events.ResultEvent;
+			import mx.managers.PopUpManager;
+		
+			private function init():void{
+				signInRequest.url = utils.Config.HOST + "/sign_in/";
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+			}
+			
+			private function checkLogin(event:ResultEvent):void {
+				if(event.result.toString() != '2') {
+					close();
+					callBack.call(parent,event.result.toString());
+				} else {
+					//failure.visible = true;
+					shake.play();
+				}
+			}
+			
+			private function downloadClient():void { 
+				var request:URLRequest = new URLRequest("/media/setup.exe"); 
+				navigateToURL(request,"_blank");
+			}
+		]]>
+	</mx:Script>	
+	
+	<mx:HTTPService id="signInRequest" useProxy="false" method="POST"  
+		showBusyCursor="true" result="checkLogin(event)" resultFormat="text">
+		<mx:request xmlns="">
+			<account>
+				{account.text}
+			</account>
+			<passwd>
+				{passwd.text}
+			</passwd>
+		</mx:request>
+	</mx:HTTPService>
+	
+	<mx:Sequence id="shake" target="{this}">
+		<mx:Move duration="200" xBy="-200"/>
+		<mx:Blur duration="50" blurXTo="100"/>
+		<mx:Move duration="200" xBy="400"/>
+		<mx:Move duration="200" xBy="-400"/>
+		<mx:Move duration="200" xBy="400"/>
+		<mx:Blur duration="50" blurXTo="1"/>
+		<mx:Move duration="200" xBy="-200"/>
+	</mx:Sequence>
+	<mx:Image x="0" y="0" source="assets/signin.png" scaleContent="true" autoLoad="true"/>
+	<mx:Array id="validators">
+		<mx:Validator required="true" property="text" source="{account}" requiredFieldError="{Str.xml.lack.@string}{Str.xml.spit.@string}{Str.xml.account.@string}"/>
+		<mx:Validator required="true" property="text" source="{passwd}" requiredFieldError="{Str.xml.lack.@string}{Str.xml.spit.@string}{Str.xml.passwd.@string}"/>
+	</mx:Array>
+	<mx:Form defaultButton="{submit}" x="35" y="201" width="481" height="154" verticalGap="11">
+		<mx:FormItem label="" >
+			<mx:HBox width="100%">
+				<mx:Label text="{Str.xml.account.@string}" fontSize="14" width="100" textAlign="right"/>
+				<mx:TextInput id="account" width="168" borderStyle="none" backgroundAlpha="0" height="24" color="#000000" fontSize="14"/>
+			</mx:HBox>
+		</mx:FormItem>
+		<mx:FormItem label="">
+			<mx:HBox horizontalGap="10" width="100%">
+				<mx:Label text="{Str.xml.passwd.@string}" fontSize="14" width="100" textAlign="right"/>
+				<mx:TextInput id="passwd" displayAsPassword="true" x="159" y="243" width="168" height="24" borderStyle="none" backgroundAlpha="0" color="#000000" fontSize="14"/>	
+				<mx:Button id="submit" click="signInRequest.send()" enabled="false" label="{Str.xml.entry.@string}"/>
+			</mx:HBox>
+		</mx:FormItem>			
+	<!--<mx:Image y="240" source="assets/enter.png" horizontalCenter="134" id="submit" click="signInRequest.send()" enabled="false" buttonMode="true" mouseChildren="false"/>-->
+	</mx:Form>
+	<mx:Label x="99" y="30" text="{Str.xml.company.@string}" color="#666666" height="23" width="306" fontWeight="bold" fontSize="14"/>
+	<mx:Label x="98" y="29" text="{Str.xml.company.@string}" color="#ffffff" height="23" width="306" fontWeight="bold" fontSize="14"/>
+	<mx:VBox horizontalCenter="0" y="105" verticalGap="0">
+		<mx:Label text="{Str.xml.welcome.@string}" color="#166E0F" fontSize="18"/>
+		<mx:Label text="{Str.xml.brand.@string} {Str.xml.sysname.@string}" height="36" fontSize="24" color="#0b333c" fontFamily="Arial"/>
+	</mx:VBox>
+	<mx:Label text="{Str.xml.download_plugin.@string}" id="download" click="downloadClient()" buttonMode="true" mouseChildren="false" x="26" y="326" color="#282B54"/>
+	<mx:Image x="21" y="13" source="assets/03.png"/>
+	<mx:Image x="423" y="21" source="assets/s_logo.png" width="93" height="32" scaleContent="false"/>
+</v:TitleWin>

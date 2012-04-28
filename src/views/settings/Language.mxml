@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" width="150" height="300" creationComplete="init();"
+	xmlns:u="utils.*" xmlns:v="views.*" title="{Str.xml.language_setting.@string}" xmlns:settings="views.settings.*"
+	xmlns:pv3dEffects="ws.tink.flex.pv3dEffects.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.rpc.events.ResultEvent;
+			import utils.*;
+			[Bindable]
+			public static var languages:Array = new Array('中文','English');
+			
+			private function init():void {
+					
+			}
+			
+			private function setLanguage():void {
+				var cookie:Object = SharedObject.getLocal("cookie");
+				cookie.data.lan = rbg.selectedValue;
+				SmartVision.lanIndex = rbg.selectedValue as Number;
+				languageRPC.url = Utils.get_url("/language?lan=" + rbg.selectedValue);
+				languageRPC.send();
+			}
+			
+			private function set_language(event:ResultEvent):void {
+				Str.xml = XML(event.result);
+				close();	
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="languageRPC" showBusyCursor="true" useProxy="false" resultFormat="xml" result="set_language(event)"/>
+	
+	<mx:VBox width="90" height="90%" horizontalCenter="0" verticalCenter="0">
+		<mx:RadioButtonGroup id="rbg"/>
+		<mx:Repeater id="rpt" dataProvider="{languages}">
+			<mx:RadioButton label="{languages[rpt.currentIndex]}" group="{rbg}" value="{rpt.currentIndex}" selected="{SmartVision.lanIndex == rpt.currentIndex}"/>	
+		</mx:Repeater>
+		<mx:Spacer height="100%"/>
+		<mx:HBox width="100%" horizontalAlign="center">
+			<mx:Button label="{Str.xml.ok.@string}" click="setLanguage()"/>	
+		</mx:HBox>
+		<mx:Spacer height="10"/>
+	</mx:VBox>
+</v:TitleWin>

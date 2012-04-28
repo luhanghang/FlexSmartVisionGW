@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin width="750" height="560" 
+	xmlns:mx="http://www.adobe.com/2006/mxml"
+	xmlns:u="utils.*" creationComplete="init()" 
+	xmlns:v="views.*" title="{Str.xml.devices.@string}" 
+	xmlns:gateway="views.gateway.*"
+	xmlns:pv3dEffects="ws.tink.flex.pv3dEffects.*">
+	
+	<mx:Metadata>
+		[Event(name="SpotAdded")]
+		[Event(name="Popup", type="events.PopupEvent")]
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import events.SpotEvent;
+			import events.EncoderEvent;
+			import events.PopupEvent;
+			import mx.utils.ObjectProxy;
+			import utils.*;
+			import mx.events.IndexChangedEvent;
+			import mx.events.CloseEvent;
+			import mx.rpc.events.FaultEvent;
+			import mx.controls.Alert;
+			import mx.controls.AdvancedDataGrid;
+			import mx.rpc.events.ResultEvent;
+			import mx.controls.CheckBox;
+			import mx.collections.ArrayCollection;
+			import mx.managers.PopUpManager;
+			import mx.managers.DragManager;
+			import mx.core.UIComponent;
+			import mx.events.DragEvent;
+			import mx.managers.PopUpManager;
+			import utils.Utils;
+			import utils.Icons;
+			import flash.net.FileReference;
+			
+			private var xmlFilters:Array = [new FileFilter("XML File", "*.xml", "xml")];
+			
+			[Bindable]
+			public var gFilter:GlowFilter = Utils.neonFilter();
+			
+			[Bindable]
+			public var encoders:XML;
+			
+			[Bindable]
+			public static var DICTIONARY:XML;
+						
+			private function set_spot(spotData:Object, isNew:Boolean):void {
+				this.dispatchEvent(new Event("SpotAdded"));
+			}
+			
+			private function init():void {
+			}
+			
+			private function showError(event:FaultEvent):void {
+				utils.Alert.show(Str.xml.server_busy.@string,Str.xml.error.@string);
+			}
+
+			private function labelFunc(item:XML):String {
+				if(item.localName().toString().indexOf("Encoder") == 0) {
+					var name:String = item.@name;
+					if(item.localName().toString() == "Encoders") {
+						name = Str.xml.device_list.@string;
+					}
+					return name + " (" + item.children().length() + ")";
+				}	
+				return item.@name;
+			}
+			
+			private function iconFunc(item:XML):* {
+				if(item.localName().toString() == "Encoder") {
+					return Icons.ENCODER;		
+				}
+				
+				if(item.localName().toString() == "Spot") {
+					return Icons.MONITOR;		
+				}
+
+				return Icons.HOME;
+			}
+			
+			private var oldNode:XML;
+			private function treeClick():void {
+				if(!deviceTree.enabled) return;
+				var node:XML = deviceTree.selectedItem as XML;
+				if(node == null) return;
+				bAddEncoder.enabled = true;
+				toggleButton(node);
+				if(node.localName().toString()!="Encoder" && node.localName().toString()!="Spot") return;
+				if(oldNode != node) {
+					oldNode = node;
+					if(node.localName().toString() == "Encoder") {
+						infTitle.text = Str.xml.encoder.@string + Str.xml.split.@string + Str.xml.inf.@string;
+						infTitle.init();
+						if(oldNode.localName().toString().indexOf("Encoder") == 0) {
+							infVS.selectedIndex = infVS.selectedIndex == 0?1:0;		
+						} else {
+							infVS.selectedIndex = 0;
+						}
+						if(infVS.selectedIndex == 0) {
+							encoderInf0.set_encoder(node);
+						}
+						else {	
+							encoderInf1.set_encoder(node);
+						}
+					} else {
+						infTitle.text = Str.xml.spot.@string + Str.xml.split.@string + Str.xml.inf.@string;
+						infTitle.init();
+						if(oldNode.localName().toString() == "Spot") {
+							infVS.selectedIndex = infVS.selectedIndex == 2?3:2;
+						} else {
+							infVS.selectedIndex = 2;	
+						}
+						if(infVS.selectedIndex == 2) {
+							spotInf0.set_spot(node.parent(),node);
+						}
+						else {	
+							spotInf1.set_spot(node.parent(),node);
+						}
+					}
+				}
+			}
+			
+			private function add_encoder():void {
+				bAddEncoder.enabled = false;
+				deviceTree.enabled = false;
+				if(oldNode && oldNode.localName().toString().indexOf("Encoder") == 0) {
+					infVS.selectedIndex = infVS.selectedIndex == 0?1:0;		
+				} else {
+					infVS.selectedIndex = 0;
+				}
+				if(infVS.selectedIndex == 0) {
+					encoderInf0.set_encoder(null);
+				}
+				else {	
+					encoderInf1.set_encoder(null);
+				}
+				oldNode = encoders;
+			}
+			
+			private function add_spot():void {
+				bAddSpot.enabled = false;
+				deviceTree.enabled = false;
+				infTitle.text = Str.xml.spot.@string + Str.xml.split.@string + Str.xml.inf.@string;
+				infTitle.init();
+				infVS.selectedIndex = 2;	
+				spotInf0.set_spot(deviceTree.selectedItem as XML, null);
+				oldNode = encoders;		
+			}
+			
+			private function toggleButton(node:XML):void {
+				if(node && node.localName().toString() == "Encoder") {
+					buttons.selectedIndex = 1;
+					return;
+				}
+				buttons.selectedIndex = 0;
+			}
+			
+			private function addEncoder(event:EncoderEvent):void {
+				encoders.appendChild(event.encoder);
+				deviceTree.selectedItem = event.encoder;
+				deviceTree.firstVisibleItem = event.encoder;
+				bAddEncoder.enabled = true;
+				deviceTree.enabled = true;
+				treeClick();
+			}
+			
+			private function addSpot(event:SpotEvent):void {
+				var node:XML = deviceTree.selectedItem as XML;
+				deviceTree.expandItem(node, true);
+				deviceTree.selectedItem = event.spot;
+				deviceTree.firstVisibleItem = event.spot;
+				bAddSpot.enabled = true;
+				deviceTree.enabled = true;
+				treeClick();
+			}
+			
+			private function cancel_add_spot():void {
+				deviceTree.enabled = true;
+				bAddSpot.enabled = true;
+				treeClick();
+			}
+			
+			private function remove_device(event:CloseEvent):void {
+				if(event.detail == mx.controls.Alert.YES) {
+					deviceTree.enabled = false;
+					var node:XML = deviceTree.selectedItem as XML;
+					var params:URLVariables = new URLVariables;
+					if(node.localName().toString() == "Encoder") {
+						deviceRPC.url = Utils.get_url("/devices/remove");
+					} else {
+						deviceRPC.url = Utils.get_url("/devices/remove_spot");
+					}
+					params['id'] = node.@id;
+					deviceRPC.send(params);
+					removeDevice();
+				}
+			}
+			
+			private function removeDevice():void {
+					deviceTree.enabled = true;
+					var node:XML = deviceTree.selectedItem as XML;
+					var children:XMLList = node.parent().children()
+					for(var i:Number = 0; i <  children.length(); i++) {
+						if(children[i] == node) {
+							delete children[i];
+							return;
+						}	
+					}
+			}
+			
+			private function import_spots(event:MouseEvent):void {
+				var im:ImportSpots = new ImportSpots;
+				PopUpManager.addPopUp(im,this,true);
+				PopUpManager.centerPopUp(im);
+				im.callBack = selectSpots;	
+			}
+			
+			private function selectSpots(xml:XML):void {
+				deviceTree.enabled = false;
+				infVS.selectedIndex = 4;
+				infTitle.text = Str.xml.select_spots_to_import.@string;
+				infTitle.init();
+				selSpots.encoder = deviceTree.selectedItem as XML;
+				selSpots.showSpots(xml);
+			}
+			
+			private function cancel_import():void {
+				deviceTree.enabled = true;
+				infTitle.text = Str.xml.encoder.@string + Str.xml.split.@string + Str.xml.inf.@string;
+				infTitle.init();
+				var node:XML = deviceTree.selectedItem as XML;
+				infVS.selectedIndex = 0;
+				encoderInf0.set_encoder(node);
+			}
+			
+			private function import_complete():void {
+				cancel_import();
+				var node:XML = deviceTree.selectedItem as XML;
+				deviceTree.expandItem(node, true);
+			}
+			
+			private function choose_backup_path():void {
+				Security.allowDomain("*");
+				var fileRef:FileReference = new FileReference();
+				fileRef.download(new URLRequest(Utils.get_url("/spots/backup")),"spot_list_backup.xml");
+                //fileRef.addEventListener(Event.CANCEL, doEvent);
+                fileRef.addEventListener(Event.COMPLETE, doEvent);
+                //fileRef.addEventListener(Event.OPEN, doEvent);
+                //fileRef.addEventListener(Event.SELECT, doEvent);
+                //fileRef.addEventListener(HTTPStatusEvent.HTTP_STATUS, doEvent);
+                //fileRef.addEventListener(IOErrorEvent.IO_ERROR, doEvent);
+                //fileRef.addEventListener(ProgressEvent.PROGRESS, doEvent);
+                //fileRef.addEventListener(SecurityErrorEvent.SECURITY_ERROR, doEvent);
+			}
+			
+			private function doEvent(evt:Event):void {
+                utils.Alert.show(Str.xml.complete.@string);
+            }
+            
+            private function choose_restore_file():void {
+				Security.allowDomain("*");
+				var fileRef:FileReference = new FileReference();
+				fileRef.addEventListener(Event.SELECT, selectHandler);
+				//fileRef.addEventListener(Event.COMPLETE, completeHandler);
+				//fileRef.addEventListener(ProgressEvent.PROGRESS, onProgress);
+				fileRef.addEventListener(DataEvent.UPLOAD_COMPLETE_DATA, reloadDevices);
+				fileRef.browse(xmlFilters);
+			} 
+			
+			private function selectHandler(event:Event):void {
+				var fileRef:FileReference = event.currentTarget as FileReference;
+				var request:URLRequest = new URLRequest(Utils.get_url("/spots/restore"));
+				request.method = "POST";
+				try {
+					fileRef.upload(request);
+				} catch(error:Error) {}
+			}
+			
+			private function reloadDevices(evt:DataEvent):void {
+				get_encoders();
+                //utils.Alert.show(evt.data.toString());
+                utils.Alert.show(Str.xml.complete.@string);
+            }
+            
+            private function init_encoders(event:ResultEvent):void {
+				encoders = XML(event.result);
+				get_spots();
+			}
+			
+			private function get_spots():void {
+				spotsRPC.url = Utils.get_url("/spots/list");
+				spotsRPC.send();
+			}
+			
+			private function get_encoders():void {
+				encoderRPC.url = Utils.get_url("/gateway/get_devices");
+				encoderRPC.send();
+			}
+			
+			private function set_spots(event:ResultEvent):void {
+				SmartVision.SPOTS = XML(event.result);
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="deviceRPC" useProxy="false" method="POST" showBusyCursor="true"/>
+	<mx:HTTPService id="encoderRPC" showBusyCursor="true" resultFormat="xml" result="init_encoders(event)"/>
+	<mx:HTTPService id="spotsRPC" showBusyCursor="true" resultFormat="xml" result="set_spots(event)"/>
+	
+	<mx:Fade id="hideFlip" alphaFrom="1" alphaTo="0"/>
+    <mx:Fade id="showFlip" alphaFrom="0" alphaTo="1"/>
+
+	<mx:HBox width="100%" height="100%" horizontalGap="3" paddingLeft="5" paddingTop="5" paddingRight="5" paddingBottom="5">
+		<mx:Canvas width="350" height="100%" left="10" styleName="smenu" verticalScrollPolicy="off" horizontalScrollPolicy="off"> 
+			<mx:VBox x="0" y="0" width="100%" height="100%" verticalGap="1">
+				<mx:Tree id="deviceTree" width="100%" height="100%" dataProvider="{encoders}"  
+					showRoot="true" labelFunction="labelFunc" rowHeight="20" iconFunction="iconFunc" 
+					openItems="{encoders}" click="treeClick()" 
+					dragEnabled="true" dragMoveEnabled="false"/>
+				
+				<mx:HBox width="100%" verticalAlign="bottom" paddingBottom="5" paddingLeft="5" paddingRight="0" paddingTop="5" horizontalGap="1">
+					<mx:ViewStack id="buttons" width="200">
+						<mx:Canvas>
+							<mx:HBox>
+								<mx:Button id="bAddEncoder" label="{Str.xml.add.@string + Str.xml.split.@string + Str.xml.encoder.@string}" enabled="false" click="add_encoder()"/>
+								<mx:Button label="{Str.xml.add.@string + Str.xml.split.@string + Str.xml.encoder.@string}" visible="false" includeInLayout="true"/>
+							</mx:HBox>
+						</mx:Canvas>
+						<mx:Canvas>
+							<mx:HBox>
+								<mx:Button id="bAddSpot" label="{Str.xml.add.@string + Str.xml.split.@string + Str.xml.spot.@string}" click="add_spot()"/>
+								<mx:Button id="bImportSpots" label="{Str.xml.to_import.@string + Str.xml.split.@string + Str.xml.spot.@string}" click="import_spots(event)"/>
+							</mx:HBox>
+						</mx:Canvas>
+					</mx:ViewStack>
+					<mx:Spacer width="100%"/>
+					<mx:Button label="{Str.xml.backup_spots.@string}" click="choose_backup_path()" toolTip="Backup" fontSize="10"/>
+					<mx:Button label="{Str.xml.restore_spots.@string}" click="choose_restore_file()" toolTip="Restore" fontSize="10"/>
+					<v:Trash src="{deviceTree}" confirm="{Str.xml.confirm_remove.@string}" callBack="remove_device" excludeTags="{['Encoders','VideoStream','AudioStream']}"/>
+				</mx:HBox>	
+			</mx:VBox>
+		</mx:Canvas>
+		<mx:Canvas width="100%" height="100%" left="10" styleName="menu" 
+			borderSides="left right bottom" verticalScrollPolicy="off" horizontalScrollPolicy="off">
+			<mx:ViewStack id="infVS" x="0" y="25" width="350" height="100%" horizontalCenter="0">
+				<gateway:EncoderInf Added="addEncoder(event)" cancelEdit="deviceTree.enabled=true" 
+					id="encoderInf0" DEVICES="{DICTIONARY.Devices.Device}" 
+					encoders="{encoders.Encoder}" 
+					hideEffect="{hideFlip}" showEffect="{showFlip}"/>
+				<gateway:EncoderInf Added="addEncoder(event)" cancelEdit="deviceTree.enabled=true" 
+					id="encoderInf1" DEVICES="{DICTIONARY.Devices.Device}" 
+					encoders="{encoders.Encoder}" 
+					hideEffect="{hideFlip}" showEffect="{showFlip}"/>
+				<gateway:SpotInfo id="spotInf0" Added="addSpot(event)" cancelEdit="cancel_add_spot()" 
+					hideEffect="{hideFlip}" showEffect="{showFlip}"/>
+				<gateway:SpotInfo id="spotInf1" Added="addSpot(event)" cancelEdit="cancel_add_spot()" 
+					hideEffect="{hideFlip}" showEffect="{showFlip}"/>
+				<gateway:SelectSpots id="selSpots" 
+					hideEffect="{hideFlip}" showEffect="{showFlip}" 
+					cancel="cancel_import()" complete="import_complete()"/>	
+			</mx:ViewStack>
+			<v:StyleTitle id="infTitle" text="{Str.xml.encoder.@string + Str.xml.split.@string + Str.xml.inf.@string}" wizColor="true"/>
+		</mx:Canvas>	
+	</mx:HBox>
+</v:TitleWin>
