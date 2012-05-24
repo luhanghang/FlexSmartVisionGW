@@ -94,7 +94,7 @@
 			}
 			
 			private function get_ptz_protocal_index():Number {
-				return 0;
+				//return 0;
 				if(!encoder) return -1;
 				for(var i:Number = 0; i < Gateway.DICTIONARY.PTZProtocals.Item.length(); i++) {
 					if(encoder.@ptz_protocal == Gateway.DICTIONARY.PTZProtocals.Item[i].@name)
